@@ -6,7 +6,7 @@ from tqdm.contrib.concurrent import process_map
 
 
 def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
-      weight_cat, weight_num, weight_sum, cat_features, num_ranges, num_max, out):
+      weight_cat, weight_num, weight_sum, cat_features, num_ranges, num_max):
     j_start = i
     if x_n_rows != y_n_rows:
         j_start = 0
@@ -105,8 +105,8 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None):
 
     g = partial(f, x_n_rows=x_n_rows, y_n_rows=y_n_rows, X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
                 weight_cat=weight_cat, weight_num=weight_num, weight_sum=weight_sum, cat_features=cat_features,
-                num_ranges=num_ranges, num_max=num_max, out=out)
-    for i, res in enumerate(process_map(g, range(x_n_rows))):
+                num_ranges=num_ranges, num_max=num_max)
+    for i, res in enumerate(process_map(g, range(x_n_rows), chunksize=10)):
         j_start= i
         if x_n_rows != y_n_rows:
             j_start = 0
