@@ -1,10 +1,10 @@
 from functools import partial
+from math import sqrt
 
 import numpy as np
 from scipy.sparse import issparse
-from tqdm.contrib.concurrent import process_map
-from math import sqrt
 from sklearn.neighbors import NearestNeighbors
+from tqdm.contrib.concurrent import process_map
 
 
 def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
@@ -109,10 +109,10 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
 
     weight_sum = weight.sum()
 
-    X_cat = Z_cat[x_index, ]
-    X_num = Z_num[x_index, ]
-    Y_cat = Z_cat[y_index, ]
-    Y_num = Z_num[y_index, ]
+    X_cat = Z_cat[x_index,]
+    X_num = Z_num[x_index,]
+    Y_cat = Z_cat[y_index,]
+    Y_num = Z_num[y_index,]
 
     h_t = np.zeros(num_cols, dtype=np.float32)
     if c > 0:
