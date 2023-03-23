@@ -6,7 +6,7 @@ from tqdm.contrib.concurrent import process_map
 
 
 def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
-      weight_cat, weight_num, weight_sum, num_ranges):
+      weight_cat, weight_num, weight_sum, num_ranges, h_t):
     j_start = i
     if x_n_rows != y_n_rows:
         j_start = 0
@@ -18,11 +18,16 @@ def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
                     weight_cat,
                     weight_num,
                     weight_sum,
-                    num_ranges)
+                    num_ranges,
+                    h_t)
     return res
 
 
-def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)):
+def get_percentiles(X, R):
+    return [np.nanpercentile(X, p, axis=0) for p in R]
+
+
+def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100), c=0.0):
     # function checks
     X = data_x
     if data_y is None:
@@ -67,15 +72,14 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
 
     for col in range(num_cols):
         col_array = Z_num[:, col].astype(np.float32)
-        max = np.nanpercentile(col_array, R[1])
-        min = np.nanpercentile(col_array, R[0])
+        p0, p1 = get_percentiles(col_array, R)
 
-        if np.isnan(max):
-            max = 0.0
-        if np.isnan(min):
-            min = 0.0
-        num_max[col] = max
-        num_ranges[col] = np.abs(1 - min / max) if (max != 0) else 0.0
+        if np.isnan(p1):
+            p1 = 0.0
+        if np.isnan(p0):
+            p0 = 0.0
+        num_max[col] = p1
+        num_ranges[col] = np.abs(1 - p0 / p1) if (p1 != 0) else 0.0
 
     # This is to normalize the numeric values between 0 and 1.
     Z_num = np.divide(Z_num, num_max, out=np.zeros_like(Z_num), where=num_max != 0)
@@ -96,8 +100,12 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     Y_cat = Z_cat[y_index,]
     Y_num = Z_num[y_index,]
 
+    h_t = np.zeros(num_cols, dtype=np.float32)
+    if c > 0:
+        p0, p1 = get_percentiles(X_num, R)
+        h_t = c * x_n_rows ** 0.2 * np.minimum(np.nanstd(X_num.astype(np.float32), axis=0), (p1 - p0) / 1.34)
     g = partial(f, x_n_rows=x_n_rows, y_n_rows=y_n_rows, X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
-                weight_cat=weight_cat, weight_num=weight_num, weight_sum=weight_sum, num_ranges=num_ranges)
+                weight_cat=weight_cat, weight_num=weight_num, weight_sum=weight_sum, num_ranges=num_ranges, h_t=h_t)
     for i, res in enumerate(process_map(g, range(x_n_rows), chunksize=10)):
         j_start = i
         if x_n_rows != y_n_rows:
@@ -110,13 +118,14 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
 
 
 def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
-              feature_weight_num, feature_weight_sum, ranges_of_numeric):
+              feature_weight_num, feature_weight_sum, ranges_of_numeric, h_t):
     # categorical columns
     sij_cat = np.where(xi_cat == xj_cat, np.zeros_like(xi_cat), np.ones_like(xi_cat))
     sum_cat = np.multiply(feature_weight_cat, sij_cat).sum(axis=1)
 
     # numerical columns
     abs_delta = np.absolute(xi_num - xj_num)
+    abs_delta[abs_delta <= h_t] = 0.0
     sij_num = np.divide(abs_delta, ranges_of_numeric, out=np.zeros_like(abs_delta), where=ranges_of_numeric != 0)
     sij_num = np.minimum(sij_num, np.ones_like(sij_num))
 
