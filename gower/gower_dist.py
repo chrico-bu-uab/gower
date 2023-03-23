@@ -38,11 +38,14 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     else:
         Y = data_y
     if not isinstance(X, np.ndarray):
-        if not np.array_equal(X.columns, Y.columns): raise TypeError("X and Y must have same columns!")
+        if not np.array_equal(X.columns, Y.columns):
+            raise TypeError("X and Y must have same columns!")
     else:
-        if not X.shape[1] == Y.shape[1]: raise TypeError("X and Y must have same y-dim!")
+        if not X.shape[1] == Y.shape[1]:
+            raise TypeError("X and Y must have same y-dim!")
 
-    if issparse(X) or issparse(Y): raise TypeError("Sparse matrices are not supported!")
+    if issparse(X) or issparse(Y):
+        raise TypeError("Sparse matrices are not supported!")
 
     x_n_rows, x_n_cols = X.shape
     y_n_rows, y_n_cols = Y.shape
@@ -59,8 +62,10 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     else:
         cat_features = np.array(cat_features)
 
-    if not isinstance(X, np.ndarray): X = np.asarray(X)
-    if not isinstance(Y, np.ndarray): Y = np.asarray(Y)
+    if not isinstance(X, np.ndarray):
+        X = np.asarray(X)
+    if not isinstance(Y, np.ndarray):
+        Y = np.asarray(Y)
 
     Z = np.concatenate((X, Y))
 
@@ -104,10 +109,10 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
 
     weight_sum = weight.sum()
 
-    X_cat = Z_cat[x_index,]
-    X_num = Z_num[x_index,]
-    Y_cat = Z_cat[y_index,]
-    Y_num = Z_num[y_index,]
+    X_cat = Z_cat[x_index, ]
+    X_num = Z_num[x_index, ]
+    Y_cat = Z_cat[y_index, ]
+    Y_num = Z_num[y_index, ]
 
     h_t = np.zeros(num_cols, dtype=np.float32)
     if c > 0:
@@ -161,7 +166,8 @@ def smallest_indices(ary, n):
 
 
 def gower_topn(data_x, data_y=None, weight=None, cat_features=None, n=5):
-    if data_x.shape[0] >= 2: TypeError("Only support `data_x` of 1 row. ")
+    if data_x.shape[0] >= 2:
+        TypeError("Only support `data_x` of 1 row. ")
     dm = gower_matrix(data_x, data_y, weight, cat_features)
 
     return smallest_indices(np.nan_to_num(dm[0], nan=1), n)
