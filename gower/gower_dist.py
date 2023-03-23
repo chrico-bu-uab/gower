@@ -144,8 +144,10 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
     xj_num[np.isnan(xj_num.astype(np.float32))] = 1.0
     if knn_models:
         for i, knn_model in enumerate(knn_models):
-            if xi_num[i] in knn_model.kneighbors(xj_num[:, i].reshape(-1, 1), return_distance=False):
-                abs_delta[:, i] = 0.0
+            neighbors = knn_model.kneighbors(xi_num[i].reshape(-1, 1), return_distance=False)
+            for j, x in enumerate(xj_num[:, i]):
+                if x in neighbors:
+                    abs_delta[j, i] = 0.0
     sij_num = np.divide(abs_delta, ranges_of_numeric, out=np.zeros_like(abs_delta), where=ranges_of_numeric != 0)
     sij_num = np.minimum(sij_num, np.ones_like(sij_num))
 

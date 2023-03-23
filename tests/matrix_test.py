@@ -19,6 +19,6 @@ def test_answer():
     aaa = gower.gower_matrix(X, R=(25, 75), c=1.06)
     assert aaa[0][6] == pytest.approx(5/6), aaa[0][6]
     aaa = gower.gower_matrix(X, knn=True)
-    assert aaa[1][2] == pytest.approx(0.5297636389732361), aaa[1][2]
+    assert aaa[1][2] == pytest.approx(0.3630969822406769), aaa[1][2]
     aaa = gower.gower_matrix(X, R=(25, 75), c=1.06, knn=True)
     assert aaa[3][6] == pytest.approx(5/6), aaa[3][6]
