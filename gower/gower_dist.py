@@ -1,6 +1,28 @@
 from scipy.sparse import issparse
 import numpy as np
 import pandas as pd
+from functools import partial
+from tqdm.contrib.concurrent import process_map
+
+
+def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
+      weight_cat, weight_num, weight_sum, cat_features, num_ranges, num_max, out):
+    j_start = i
+    if x_n_rows != y_n_rows:
+        j_start = 0
+    # call the main function
+    res = gower_get(X_cat[i, :],
+                    X_num[i, :],
+                    Y_cat[j_start:y_n_rows, :],
+                    Y_num[j_start:y_n_rows, :],
+                    weight_cat,
+                    weight_num,
+                    weight_sum,
+                    cat_features,
+                    num_ranges,
+                    num_max)
+    # print(res)
+    return res
 
 def gower_matrix(data_x, data_y=None, weight=None, cat_features=None):  
     
@@ -80,23 +102,14 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None):
     Y_num = Z_num[y_index,]
     
    # print(X_cat,X_num,Y_cat,Y_num)
-    
-    for i in range(x_n_rows):          
-        j_start= i        
+
+    g = partial(f, x_n_rows=x_n_rows, y_n_rows=y_n_rows, X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
+                weight_cat=weight_cat, weight_num=weight_num, weight_sum=weight_sum, cat_features=cat_features,
+                num_ranges=num_ranges, num_max=num_max, out=out)
+    for i, res in enumerate(process_map(g, range(x_n_rows))):
+        j_start= i
         if x_n_rows != y_n_rows:
             j_start = 0
-        # call the main function
-        res = gower_get(X_cat[i,:], 
-                          X_num[i,:],
-                          Y_cat[j_start:y_n_rows,:],
-                          Y_num[j_start:y_n_rows,:],
-                          weight_cat,
-                          weight_num,
-                          weight_sum,
-                          cat_features,
-                          num_ranges,
-                          num_max) 
-        #print(res)
         out[i,j_start:]=res
         if x_n_rows == y_n_rows: out[i:,j_start]=res
         
