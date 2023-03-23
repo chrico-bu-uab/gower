@@ -22,7 +22,7 @@ def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
     return res
 
 
-def gower_matrix(data_x, data_y=None, weight=None, cat_features=None):
+def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)):
     # function checks
     X = data_x
     if data_y is None:
@@ -67,8 +67,8 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None):
 
     for col in range(num_cols):
         col_array = Z_num[:, col].astype(np.float32)
-        max = np.nanmax(col_array)
-        min = np.nanmin(col_array)
+        max = np.nanpercentile(col_array, R[1])
+        min = np.nanpercentile(col_array, R[0])
 
         if np.isnan(max):
             max = 0.0
@@ -118,6 +118,7 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
     # numerical columns
     abs_delta = np.absolute(xi_num - xj_num)
     sij_num = np.divide(abs_delta, ranges_of_numeric, out=np.zeros_like(abs_delta), where=ranges_of_numeric != 0)
+    sij_num = np.minimum(sij_num, np.ones_like(sij_num))
 
     sum_num = np.multiply(feature_weight_num, sij_num).sum(axis=1)
     sums = np.add(sum_cat, sum_num)
