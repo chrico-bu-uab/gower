@@ -72,7 +72,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     x_index = range(0, x_n_rows)
     y_index = range(x_n_rows, x_n_rows + y_n_rows)
 
-    Z_num = Z[:, np.logical_not(cat_features)]
+    Z_num = Z[:, np.logical_not(cat_features)].astype(np.float32)
 
     num_cols = Z_num.shape[1]
     num_ranges = np.zeros(num_cols)
@@ -81,7 +81,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     knn_models = []
     n_knn = int(sqrt(x_n_rows))
     for col in range(num_cols):
-        col_array = Z_num[:, col].astype(np.float32)
+        col_array = Z_num[:, col]
         p0, p1 = get_percentiles(col_array, R)
 
         if np.isnan(p1):
@@ -117,7 +117,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     h_t = np.zeros(num_cols, dtype=np.float32)
     if c > 0:
         p0, p1 = get_percentiles(X_num, R)
-        h_t = c * x_n_rows ** 0.2 * np.minimum(np.nanstd(X_num.astype(np.float32), axis=0), (p1 - p0) / 1.34)
+        h_t = c * x_n_rows ** 0.2 * np.minimum(np.nanstd(X_num, axis=0), (p1 - p0) / 1.34)
     g = partial(f, x_n_rows=x_n_rows, y_n_rows=y_n_rows, X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
                 weight_cat=weight_cat, weight_num=weight_num, weight_sum=weight_sum, num_ranges=num_ranges, h_t=h_t,
                 knn_models=knn_models)
