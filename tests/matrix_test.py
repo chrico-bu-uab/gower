@@ -15,6 +15,10 @@ def test_answer():
     X = np.asarray(Xd)
     Y = np.asarray(Yd)
     aaa = gower.gower_matrix(X)
-    assert aaa[0][1] == pytest.approx(0.3590238, 0.001), aaa[0][1]
-    aaa = gower.gower_matrix(X, R=(10, 90), c=1.06)
-    assert aaa[0][6] == pytest.approx(5/6, 0.001), aaa[0][6]
+    assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
+    aaa = gower.gower_matrix(X, R=(25, 75), c=1.06)
+    assert aaa[0][6] == pytest.approx(5/6), aaa[0][6]
+    aaa = gower.gower_matrix(X, knn=True)
+    assert aaa[1][2] == pytest.approx(0.5297636389732361), aaa[1][2]
+    aaa = gower.gower_matrix(X, R=(25, 75), c=1.06, knn=True)
+    assert aaa[3][6] == pytest.approx(5/6), aaa[3][6]
