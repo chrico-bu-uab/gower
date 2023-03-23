@@ -17,8 +17,10 @@ def test_answer():
     aaa = gower.gower_matrix(X)
     assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
     aaa = gower.gower_matrix(X, R=(25, 75), c=1.06)
-    assert aaa[0][6] == pytest.approx(5/6), aaa[0][6]
+    assert aaa[0][1] == pytest.approx(1/3), aaa[0][1]
     aaa = gower.gower_matrix(X, knn=True)
-    assert aaa[1][2] == pytest.approx(0.3630969822406769), aaa[1][2]
-    aaa = gower.gower_matrix(X, R=(25, 75), c=1.06, knn=True)
-    assert aaa[3][6] == pytest.approx(5/6), aaa[3][6]
+    assert aaa[0][1] == pytest.approx(0.192357137799263), aaa[0][1]
+    aaa = gower.gower_matrix(X, normalize_cat=True)
+    assert aaa[0][1] == pytest.approx(0.2656864821910858), aaa[0][1]
+    aaa = gower.gower_matrix(X, normalize_cat=True, knn=True)
+    assert aaa[0][1] == pytest.approx(0.09901982545852661), aaa[0][1]

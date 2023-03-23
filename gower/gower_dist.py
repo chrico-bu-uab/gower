@@ -3,7 +3,9 @@ from math import sqrt
 
 import numpy as np
 from scipy.sparse import issparse
+from scipy.stats import kurtosis
 from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import OneHotEncoder
 from tqdm.contrib.concurrent import process_map
 
 
@@ -26,11 +28,20 @@ def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
     return res
 
 
+def get_cat_subweights(x):
+    oe = OneHotEncoder()
+    array = oe.fit_transform(np.array(x).reshape(-1, 1)).toarray()
+    # df = pd.DataFrame(array, columns=oe.categories_)
+    n = len(x)
+    return (kurtosis(array, fisher=False, bias=False).std() + 1 / n) / (array.std(axis=0).sum() + (n - 1) / n)
+
+
 def get_percentiles(X, R):
     return [np.nanpercentile(X, p, axis=0) for p in R]
 
 
-def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100), c=0.0, knn=False, chunksize=10):
+def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100), c=0.0, knn=False, normalize_cat=False,
+                 chunksize=10):
     # function checks
     X = data_x
     if data_y is None:
@@ -103,6 +114,8 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
         weight = np.ones(Z.shape[1])
 
     weight_cat = weight[cat_features]
+    if normalize_cat:
+        weight_cat *= np.array(process_map(get_cat_subweights, Z_cat.T, chunksize=1))
     weight_num = weight[np.logical_not(cat_features)]
 
     out = np.zeros((x_n_rows, y_n_rows), dtype=np.float32)
