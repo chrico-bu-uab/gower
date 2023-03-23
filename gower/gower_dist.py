@@ -30,7 +30,7 @@ def get_percentiles(X, R):
     return [np.nanpercentile(X, p, axis=0) for p in R]
 
 
-def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100), c=0.0, knn=False):
+def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100), c=0.0, knn=False, chunksize=10):
     # function checks
     X = data_x
     if data_y is None:
@@ -121,7 +121,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     g = partial(f, x_n_rows=x_n_rows, y_n_rows=y_n_rows, X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
                 weight_cat=weight_cat, weight_num=weight_num, weight_sum=weight_sum, num_ranges=num_ranges, h_t=h_t,
                 knn_models=knn_models)
-    for i, res in enumerate(process_map(g, range(x_n_rows), chunksize=10)):
+    for i, res in enumerate(process_map(g, range(x_n_rows), chunksize=chunksize)):
         j_start = i
         if x_n_rows != y_n_rows:
             j_start = 0
