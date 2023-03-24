@@ -40,8 +40,7 @@ def get_percentiles(X, R):
     return [np.nanpercentile(X, p, axis=0) for p in R]
 
 
-def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100), c=0.0, knn=False, normalize_cat=False,
-                 chunksize=10):
+def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100), c=0.0, knn=False, chunksize=10):
     # function checks
     X = data_x
     if data_y is None:
@@ -100,7 +99,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
         if np.isnan(p0):
             p0 = 0.0
         num_max[col] = p1
-        num_ranges[col] = np.abs(1 - p0 / p1) if (p1 != 0) else 0.0
+        num_ranges[col] = abs(1 - p0 / p1) if (p1 != 0) else 0.0
 
         if knn:
             col_array[np.isnan(col_array)] = 0.0
@@ -110,11 +109,12 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     Z_num = np.divide(Z_num, num_max, out=np.zeros_like(Z_num), where=num_max != 0)
     Z_cat = Z[:, cat_features]
 
+    passed_weight = weight
     if weight is None:
         weight = np.ones(Z.shape[1])
 
     weight_cat = weight[cat_features]
-    if normalize_cat:
+    if passed_weight is None:
         weight_cat *= np.array(process_map(get_cat_subweights, Z_cat.T, chunksize=1))
     weight_num = weight[np.logical_not(cat_features)]
 
@@ -122,10 +122,10 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
 
     weight_sum = weight.sum()
 
-    X_cat = Z_cat[x_index,]
-    X_num = Z_num[x_index,]
-    Y_cat = Z_cat[y_index,]
-    Y_num = Z_num[y_index,]
+    X_cat = Z_cat[x_index, ]
+    X_num = Z_num[x_index, ]
+    Y_cat = Z_cat[y_index, ]
+    Y_num = Z_num[y_index, ]
 
     h_t = np.zeros(num_cols, dtype=np.float32)
     if c > 0:
