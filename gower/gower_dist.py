@@ -32,8 +32,9 @@ def get_cat_subweights(x):
     oe = OneHotEncoder()
     array = oe.fit_transform(np.array(x).reshape(-1, 1)).toarray()
     # df = pd.DataFrame(array, columns=oe.categories_)
-    n = len(x)
-    return (kurtosis(array, fisher=False, bias=False).std() + 1 / n) / (array.std(axis=0).sum() + (n - 1) / n)
+    var_sum = np.square(array - array.mean(axis=0)).sum() / (len(x) - 1)
+    weight = (1 - var_sum) * var_sum * kurtosis(array, axis=None, fisher=False)
+    return weight
 
 
 def get_percentiles(X, R):
@@ -82,7 +83,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     x_index = range(0, x_n_rows)
     y_index = range(x_n_rows, x_n_rows + y_n_rows)
 
-    Z_num = Z[:, np.logical_not(cat_features)].astype(np.float32)
+    Z_num = Z[:, np.logical_not(cat_features)].astype(np.float64)
 
     num_cols = Z_num.shape[1]
     num_ranges = np.zeros(num_cols)
@@ -102,7 +103,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
         num_ranges[col] = abs(1 - p0 / p1) if (p1 != 0) else 0.0
 
         if knn:
-            col_array[np.isnan(col_array)] = 0.0
+            col_array[np.isnan(col_array)] = 1.0
             knn_models.append(NearestNeighbors(n_neighbors=n_knn).fit(col_array.reshape(-1, 1)))
 
     # This is to normalize the numeric values between 0 and 1.
@@ -118,7 +119,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
         weight_cat *= np.array(process_map(get_cat_subweights, Z_cat.T, chunksize=1))
     weight_num = weight[np.logical_not(cat_features)]
 
-    out = np.zeros((x_n_rows, y_n_rows), dtype=np.float32)
+    out = np.zeros((x_n_rows, y_n_rows), dtype=np.float64)
 
     weight_sum = weight.sum()
 
@@ -127,7 +128,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     Y_cat = Z_cat[y_index, ]
     Y_num = Z_num[y_index, ]
 
-    h_t = np.zeros(num_cols, dtype=np.float32)
+    h_t = np.zeros(num_cols, dtype=np.float64)
     if c > 0:
         p0, p1 = get_percentiles(X_num, R)
         dist = norm(0, 1)
@@ -154,7 +155,7 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
 
     # numerical columns
     abs_delta = np.maximum(np.absolute(xi_num - xj_num) - h_t, 0)
-    xj_num[np.isnan(xj_num.astype(np.float32))] = 1.0
+    xj_num = np.where(np.isnan(xj_num), 1.0, xj_num)
     if knn_models:
         for i, knn_model in enumerate(knn_models):
             neighbors = knn_model.kneighbors(xi_num[i].reshape(-1, 1), return_distance=False)
