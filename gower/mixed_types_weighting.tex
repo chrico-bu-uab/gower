@@ -1,0 +1,25 @@
+%! Author = temp
+%! Date = 3/24/23
+
+% Preamble
+\documentclass[8pt]{article}
+
+% Packages
+\usepackage{amsmath}
+\DeclareMathOperator{\Var}{\widehat{Var}}
+\DeclareMathOperator{\Kurt}{\widehat{Kurt}}
+\usepackage[legalpaper, landscape, margin=2in]{geometry}
+\usepackage{algpseudocode}
+
+% Document
+\begin{document}
+
+    The following is a weighting scheme for a mixed type Gower matrix.
+
+    Let $X_t$ be the $t^{th}$ variable of dataset $X$.
+    Let ${h_t}_k$ be the $k^{th}$ column of the one-hot encoding $H_t$ of (categorical) variable $X_t$.
+
+    Set $w_t\leftarrow\sum_k^{K_t}{\Var({h_t}_k)}\left[1-\sum_k^{K_t}{\Var({h_t}_k})\right]\Kurt(H_t)$
+
+
+\end{document}

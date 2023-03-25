@@ -1,5 +1,5 @@
 from functools import partial
-from math import sqrt
+from math import isclose, sqrt
 
 import numpy as np
 from scipy.sparse import issparse
@@ -28,13 +28,12 @@ def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
     return res
 
 
-def get_cat_subweights(x):
-    oe = OneHotEncoder()
-    array = oe.fit_transform(np.array(x).reshape(-1, 1)).toarray()
-    # df = pd.DataFrame(array, columns=oe.categories_)
-    var_sum = np.square(array - array.mean(axis=0)).sum() / (len(x) - 1)
-    weight = (1 - var_sum) * var_sum * kurtosis(array, axis=None, fisher=False)
-    return weight
+def get_cat_weight(x):
+    one_hot = OneHotEncoder().fit_transform(np.array(x).reshape(-1, 1)).toarray()
+    var_sum = np.square(one_hot - one_hot.mean(axis=0)).sum() / (len(x) - 1)
+    if isclose(var_sum, 0) or isclose(var_sum, 1):
+        return 0
+    return (1 - var_sum) * var_sum * kurtosis(one_hot, axis=None, fisher=False)
 
 
 def get_percentiles(X, R):
@@ -110,18 +109,16 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     Z_num = np.divide(Z_num, num_max, out=np.zeros_like(Z_num), where=num_max != 0)
     Z_cat = Z[:, cat_features]
 
-    passed_weight = weight
     if weight is None:
-        weight = np.ones(Z.shape[1])
-
-    weight_cat = weight[cat_features]
-    if passed_weight is None:
-        weight_cat *= np.array(process_map(get_cat_subweights, Z_cat.T, chunksize=1))
-    weight_num = weight[np.logical_not(cat_features)]
+        weight_cat = np.array(process_map(get_cat_weight, Z_cat.T, chunksize=1))
+        weight_num = np.ones(num_cols)
+        weight_sum = Z.shape[1]
+    else:
+        weight_cat = weight[cat_features]
+        weight_num = weight[np.logical_not(cat_features)]
+        weight_sum = weight.sum()
 
     out = np.zeros((x_n_rows, y_n_rows), dtype=np.float64)
-
-    weight_sum = weight.sum()
 
     X_cat = Z_cat[x_index, ]
     X_num = Z_num[x_index, ]
