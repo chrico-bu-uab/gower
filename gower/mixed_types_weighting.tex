@@ -2,7 +2,7 @@
 %! Date = 3/24/23
 
 % Preamble
-\documentclass[8pt]{article}
+\documentclass[11pt]{article}
 
 % Packages
 \usepackage{amsmath}
@@ -19,9 +19,9 @@
 
     $x_t$ is the $t^{\text{th}}$ variable of dataset $X$.
 
-    If $x_t$ is a continuous variable, then $w_t\leftarrow1$.
+    If $x_t$ is a numeric variable, then $w_t\leftarrow1$.
 
-    Otherwise, let ${h_t}_k$ is the $k^{\text{th}}$ column of the one-hot encoding $H_t$ of $x_t$.
+    Otherwise, let ${h_t}_k$ be the $k^{\text{th}}$ column of the one-hot encoding $H_t$ of $x_t$.
 
     $w_t\leftarrow\sum_k^{K_t}{\Var({h_t}_k)}\left[1-\sum_k^{K_t}{\Var({h_t}_k})\right]\Kurt(H_t)$
 
