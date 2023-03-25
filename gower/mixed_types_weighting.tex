@@ -14,12 +14,18 @@
 % Document
 \begin{document}
 
-    The following is a weighting scheme for a mixed type Gower matrix.
+    The following is a scheme for weighting variables in a mixed-type dataset to convert into a Gower
+    matrix.
 
-    Let $X_t$ be the $t^{th}$ variable of dataset $X$.
-    Let ${h_t}_k$ be the $k^{th}$ column of the one-hot encoding $H_t$ of (categorical) variable $X_t$.
+    $x_t$ is the $t^{\text{th}}$ variable of dataset $X$.
 
-    Set $w_t\leftarrow\sum_k^{K_t}{\Var({h_t}_k)}\left[1-\sum_k^{K_t}{\Var({h_t}_k})\right]\Kurt(H_t)$
+    If $x_t$ is a continuous variable, then $w_t\leftarrow1$.
 
+    Otherwise, let ${h_t}_k$ is the $k^{\text{th}}$ column of the one-hot encoding $H_t$ of $x_t$.
+
+    $w_t\leftarrow\sum_k^{K_t}{\Var({h_t}_k)}\left[1-\sum_k^{K_t}{\Var({h_t}_k})\right]\Kurt(H_t)$
+
+    The first term is zero when all the values of the variable are the same, whereas the second term is zero when
+    they're all different. The third term increases as the number of unique values increases.
 
 \end{document}
