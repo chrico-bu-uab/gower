@@ -7,7 +7,7 @@
 % Packages
 \usepackage{amsmath}
 \DeclareMathOperator{\Var}{\widehat{Var}}
-\DeclareMathOperator{\Kurt}{\widehat{Kurt}}
+\DeclareMathOperator{\Kurt}{\widehat{Kurtosis}}
 \usepackage[legalpaper, landscape, margin=2in]{geometry}
 \usepackage{algpseudocode}
 
@@ -17,15 +17,23 @@
     The following is a scheme for weighting variables in a mixed-type dataset to convert into a Gower
     matrix.
 
-    $x_t$ is the $t^{\text{th}}$ variable of dataset $X$.
+    $x$ is a variable of dataset $X$.
 
-    If $x_t$ is a numeric variable, then $w_t\leftarrow1$.
+    If $x$ is a numeric variable, then $w\leftarrow1$.
 
-    Otherwise, let ${h_t}_k$ be the $k^{\text{th}}$ column of the one-hot encoding $H_t$ of $x_t$.
+    Otherwise, if $x$ is a categorical variable, then:
 
-    $w_t\leftarrow\sum_k^{K_t}{\Var({h_t}_k)}\left[1-\sum_k^{K_t}{\Var({h_t}_k})\right]\Kurt(H_t)$
+    \begin{equation}
+        w\leftarrow
+        \left[\sum_k^K{\Var(h_k)}\right]
+        \left[1-\sum_k^K{\Var(h_k)}\right]
+        \Biggl[\Kurt(H)\Biggr]\label{eq:equation}
+    \end{equation}
+
+    $H$ is the one-hot encoding of $x$ and $h_k$ is the column of $H$ corresponding to the $k^{\text{th}}$ class of $x$.
 
     The first term is zero when all the values of the variable are the same, whereas the second term is zero when
-    they're all different. The third term increases as the number of unique values increases.
+    they're all different.
+    The third term increases as the number of unique values increases.
 
 \end{document}
