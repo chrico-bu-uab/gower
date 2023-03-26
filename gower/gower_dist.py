@@ -30,6 +30,8 @@ def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
 
 
 def get_cat_weight(x):
+    if len(x) == 1:
+        return 0
     one_hot = OneHotEncoder().fit_transform(np.array(x).reshape(-1, 1)).toarray()
     var_sum = np.square(one_hot - one_hot.mean(axis=0)).sum() / (len(x) - 1)
     if isclose(var_sum, 0) or isclose(var_sum, 1):
