@@ -27,24 +27,24 @@ def test_answer():
     Xd['knn'] = None
 
     aaa = gower.gower_matrix(X, weight=np.ones(6))
-    assert aaa[0][1] == pytest.approx(0.3590238094329834), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
     Xd.iloc[:-1, -4] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
-    print(np.nanmean(aaa), np.nanstd(aaa))
+    print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X)
-    assert aaa[0][1] == pytest.approx(0.2916707939830703), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.30246976919540675), aaa[0][1]
     Xd.iloc[:-1, -3] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
-    print(np.nanmean(aaa), np.nanstd(aaa))
+    print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, R=(30, 70), c=2)
-    assert aaa[0][1] == pytest.approx(0.5548674556378921), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.5656664308502285), aaa[0][1]
     Xd.iloc[:-1, -2] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
-    print(np.nanmean(aaa), np.nanstd(aaa))
+    print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, knn=True)
-    assert aaa[0][1] == pytest.approx(0.12500412731640362), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.13580310252874006), aaa[0][1]
     Xd.iloc[:-1, -1] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
-    print(np.nanmean(aaa), np.nanstd(aaa))
+    print(pd.DataFrame(aaa).describe())
 
     print(Xd.iloc[:, :6])
     print(Xd.iloc[:, 6:])

@@ -17,23 +17,32 @@
     The following is a scheme for weighting variables in a mixed-type dataset to convert into a Gower
     matrix.
 
-    $x$ is a variable of dataset $X$.
+    $x$ is a column of matrix $X$ of shape $\left(n,d\right)$.
 
     If $x$ is a numeric variable, then $w\leftarrow1$.
 
-    Otherwise, if $x$ is a categorical variable, then:
+    Otherwise, if $x$ is a categorical variable, then we can use the following equation to calculate the entry-wise
+    unbiased sample kurtosis of $H$, the one-hot encoding of $x$, where $h_c$ is the column of $H$ corresponding to the
+    $c^{\text{th}}$ of $C$ classes in $x$:
+
+    \begin{equation}
+        \Kurt=\frac{(C^2n^2-1)(C+\frac{1}{(C-1)}-2)-3(Cn-1)^2}{(Cn-2)(Cn-3)}+3 \label{eq:kurtosis}
+    \end{equation}
+
+    Then, we can calculate the weight of $x$ as follows:
 
     \begin{equation}
         w\leftarrow
-        \left[\sum_k^K{\Var(h_k)}\right]
-        \left[1-\sum_k^K{\Var(h_k)}\right]
-        \Biggl[\Kurt(H)\Biggr]\label{eq:equation}
+        \left[\sum_c^C{\Var(h_c)}\right]
+        \left[1-\sum_c^C{\Var(h_c)}\right]
+        \Biggl[\Kurt\Biggr]
+        \label{eq:equation}
     \end{equation}
 
-    $H$ is the one-hot encoding of $x$ and $h_k$ is the column of $H$ corresponding to the $k^{\text{th}}$ class of $x$.
 
-    The first term is zero when all the values of the variable are the same, whereas the second term is zero when
-    they're all different.
-    The third term increases as the number of unique values increases.
+
+    The first term in brackets is zero when all the values of the variable are the same, the second term is zero when
+    they're all different, and the third term increases with the number of classes and decreases with the number of
+    observations in each class.
 
 \end{document}

@@ -3,13 +3,14 @@ from math import isclose, sqrt
 
 import numpy as np
 from scipy.sparse import issparse
-from scipy.stats import kurtosis, norm
+from scipy.stats import norm
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import OneHotEncoder
+from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
-def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
+def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
       weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models):
     j_start = i
     if x_n_rows != y_n_rows:
@@ -30,17 +31,22 @@ def f(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
 
 def get_cat_weight(x):
     one_hot = OneHotEncoder().fit_transform(np.array(x).reshape(-1, 1)).toarray()
-    var_sum = np.square(one_hot - one_hot.mean(axis=0)).sum() / (len(x) - 1)
-    if isclose(var_sum, 0) or isclose(var_sum, 1):
+    unbiased_var_sum = np.square(one_hot - one_hot.mean(axis=0)).sum() / (len(x) - 1)
+    if isclose(unbiased_var_sum, 0) or isclose(unbiased_var_sum, 1):
         return 0
-    return (1 - var_sum) * var_sum * kurtosis(one_hot, axis=None, fisher=False)
+    n, k = one_hot.shape
+    N = n * k
+    biased_kurtosis_flat = k + 1 / (k - 1) - 2
+    unbiased_kurtosis_flat = 1 / (N - 2) / (N - 3) * ((N ** 2 - 1) * biased_kurtosis_flat - 3 * (N - 1) ** 2) + 3
+    return (1 - unbiased_var_sum) * unbiased_var_sum * unbiased_kurtosis_flat
 
 
 def get_percentiles(X, R):
     return [np.nanpercentile(X, p, axis=0) for p in R]
 
 
-def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100), c=0.0, knn=False, chunksize=10):
+def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100), c=0.0,
+                 knn=False, use_mp=True, **tqdm_kwargs):
     # function checks
     X = data_x
     if data_y is None:
@@ -109,14 +115,22 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     Z_num = np.divide(Z_num, num_max, out=np.zeros_like(Z_num), where=num_max != 0)
     Z_cat = Z[:, cat_features]
 
-    if weight is None:
-        weight_cat = np.array(process_map(get_cat_weight, Z_cat.T, chunksize=1))
-        weight_num = np.ones(num_cols)
-        weight_sum = Z.shape[1]
-    else:
+    if isinstance(weight, np.array):
         weight_cat = weight[cat_features]
         weight_num = weight[np.logical_not(cat_features)]
         weight_sum = weight.sum()
+    else:
+        if weight == "uniform":
+            weight_cat = np.ones(Z_cat.shape[1])
+        else:
+            if use_mp:
+                weight_cat = process_map(get_cat_weight, Z_cat.T, **tqdm_kwargs)
+            else:
+                weight_cat = [get_cat_weight(Z_cat[:, col]) for col in tqdm(range(Z_cat.shape[1]))]
+        weight_cat = np.array(weight_cat)
+        weight_cat /= 4 * weight_cat.max(initial=0)
+        weight_num = np.ones(num_cols)
+        weight_sum = Z.shape[1]
 
     out = np.zeros((x_n_rows, y_n_rows), dtype=np.float64)
 
@@ -130,16 +144,23 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
         p0, p1 = get_percentiles(X_num, R)
         dist = norm(0, 1)
         h_t = c * x_n_rows ** -0.2 * np.minimum(np.nanstd(X_num, axis=0), (p1 - p0) / (dist.ppf(p1) - dist.ppf(p0)))
-    g = partial(f, x_n_rows=x_n_rows, y_n_rows=y_n_rows, X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
+    g = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows, X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
                 weight_cat=weight_cat, weight_num=weight_num, weight_sum=weight_sum, num_ranges=num_ranges, h_t=h_t,
                 knn_models=knn_models)
-    for i, res in enumerate(process_map(g, range(x_n_rows), chunksize=chunksize)):
+    if use_mp:
+        processed = process_map(g, range(x_n_rows), **tqdm_kwargs)
+    else:
+        processed = list(map(g, tqdm(range(x_n_rows))))
+    for i, res in enumerate(processed):
         j_start = i
         if x_n_rows != y_n_rows:
             j_start = 0
         out[i, j_start:] = res
         if x_n_rows == y_n_rows:
             out[i:, j_start] = res
+
+    max_distance = np.nanmax(out)
+    assert max_distance <= 1, max_distance
 
     return out
 
