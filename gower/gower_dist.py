@@ -1,5 +1,5 @@
 from functools import partial
-from math import isclose, sqrt
+from math import isclose, tanh, sqrt
 
 import numpy as np
 from scipy.sparse import issparse
@@ -31,14 +31,13 @@ def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
 
 def get_cat_weight(x):
     one_hot = OneHotEncoder().fit_transform(np.array(x).reshape(-1, 1)).toarray()
-    unbiased_var_sum = np.square(one_hot - one_hot.mean(axis=0)).sum() / (len(x) - 1)
-    if isclose(unbiased_var_sum, 0) or isclose(unbiased_var_sum, 1):
+    var_sum = np.square(one_hot - one_hot.mean(axis=0)).sum() / (len(x) - 1)
+    if isclose(var_sum, 0) or isclose(var_sum, 1):
         return 0
     n, k = one_hot.shape
     N = n * k
-    biased_kurtosis_flat = k + 1 / (k - 1) - 2
-    unbiased_kurtosis_flat = 1 / (N - 2) / (N - 3) * ((N ** 2 - 1) * biased_kurtosis_flat - 3 * (N - 1) ** 2) + 3
-    return np.tanh((1 - unbiased_var_sum) * unbiased_var_sum * unbiased_kurtosis_flat)
+    kurtosis_flat = 1 / (N - 2) / (N - 3) * ((N ** 2 - 1) * (k + 1 / (k - 1) - 2) - 3 * (N - 1) ** 2) + 3
+    return tanh((1 - var_sum) * var_sum * kurtosis_flat)
 
 
 def get_percentiles(X, R):
@@ -129,7 +128,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
                 weight_cat = [get_cat_weight(Z_cat[:, col]) for col in tqdm(range(Z_cat.shape[1]))]
         weight_cat = np.array(weight_cat)
         weight_num = np.ones(num_cols)
-        weight_sum = Z.shape[1]
+        weight_sum = weight_cat.sum() + num_cols
 
     out = np.zeros((x_n_rows, y_n_rows), dtype=np.float64)
 
