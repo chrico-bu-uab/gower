@@ -32,11 +32,11 @@
     Then, we can calculate the weight of $x$ as follows:
 
     \begin{equation}
-        w\leftarrow
+        w\leftarrow\tanh{\Biggl(
         \left[\sum_c^C{\Var(h_c)}\right]
         \left[1-\sum_c^C{\Var(h_c)}\right]
         \Biggl[\Kurt\Biggr]
-        \label{eq:equation}
+        \label{eq:equation}\Biggr)}
     \end{equation}
 
 

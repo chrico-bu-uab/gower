@@ -26,13 +26,13 @@ def test_answer():
     Xd['h_t'] = None
     Xd['knn'] = None
 
-    aaa = gower.gower_matrix(X, weight=np.ones(6))
+    aaa = gower.gower_matrix(X, weight="uniform")
     assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
     Xd.iloc[:-1, -4] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X)
-    assert aaa[0][1] == pytest.approx(0.30246976919540675), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.28320004657984044), aaa[0][1]
     Xd.iloc[:-1, -3] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 

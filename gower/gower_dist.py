@@ -38,7 +38,7 @@ def get_cat_weight(x):
     N = n * k
     biased_kurtosis_flat = k + 1 / (k - 1) - 2
     unbiased_kurtosis_flat = 1 / (N - 2) / (N - 3) * ((N ** 2 - 1) * biased_kurtosis_flat - 3 * (N - 1) ** 2) + 3
-    return (1 - unbiased_var_sum) * unbiased_var_sum * unbiased_kurtosis_flat
+    return np.tanh((1 - unbiased_var_sum) * unbiased_var_sum * unbiased_kurtosis_flat)
 
 
 def get_percentiles(X, R):
@@ -115,7 +115,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     Z_num = np.divide(Z_num, num_max, out=np.zeros_like(Z_num), where=num_max != 0)
     Z_cat = Z[:, cat_features]
 
-    if isinstance(weight, np.array):
+    if isinstance(weight, np.ndarray):
         weight_cat = weight[cat_features]
         weight_num = weight[np.logical_not(cat_features)]
         weight_sum = weight.sum()
@@ -128,7 +128,6 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
             else:
                 weight_cat = [get_cat_weight(Z_cat[:, col]) for col in tqdm(range(Z_cat.shape[1]))]
         weight_cat = np.array(weight_cat)
-        weight_cat /= 4 * weight_cat.max(initial=0)
         weight_num = np.ones(num_cols)
         weight_sum = Z.shape[1]
 
