@@ -1,5 +1,5 @@
 from functools import partial
-from math import isclose, tanh, sqrt
+from math import isclose, log, sqrt, tanh
 
 import numpy as np
 from scipy.sparse import issparse
@@ -30,7 +30,7 @@ def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
 
 
 def get_cat_weight(x):
-    if len(x) == 1:
+    if len(set(x)) <= 1:
         return 0
     one_hot = OneHotEncoder().fit_transform(np.array(x).reshape(-1, 1)).toarray()
     var_sum = np.square(one_hot - one_hot.mean(axis=0)).sum() / (len(x) - 1)
@@ -39,7 +39,11 @@ def get_cat_weight(x):
     n, k = one_hot.shape
     N = n * k
     kurtosis_flat = 1 / (N - 2) / (N - 3) * ((N ** 2 - 1) * (k + 1 / (k - 1) - 2) - 3 * (N - 1) ** 2) + 3
-    return tanh((1 - var_sum) * var_sum * kurtosis_flat)
+    return tanh((1 - var_sum) * var_sum * kurtosis_flat / log(n))
+
+
+def get_num_weight(x):
+    return 1 / np.mean(np.abs(x - x.mean()))
 
 
 def get_percentiles(X, R):
@@ -89,6 +93,8 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     x_index = range(0, x_n_rows)
     y_index = range(x_n_rows, x_n_rows + y_n_rows)
 
+    # numeric values
+
     Z_num = Z[:, np.logical_not(cat_features)].astype(np.float64)
 
     num_cols = Z_num.shape[1]
@@ -114,7 +120,13 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
 
     # This is to normalize the numeric values between 0 and 1.
     Z_num = np.divide(Z_num, num_max, out=np.zeros_like(Z_num), where=num_max != 0)
+
+    # categorical values
+
     Z_cat = Z[:, cat_features]
+    cat_cols = Z_cat.shape[1]
+
+    # weights
 
     if isinstance(weight, np.ndarray):
         weight_cat = weight[cat_features]
@@ -122,15 +134,20 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
         weight_sum = weight.sum()
     else:
         if weight == "uniform":
-            weight_cat = np.ones(Z_cat.shape[1])
+            weight_cat = np.ones(cat_cols)
+            weight_num = np.ones(num_cols)
         else:
             if use_mp:
                 weight_cat = process_map(get_cat_weight, Z_cat.T, **tqdm_kwargs)
+                weight_num = process_map(get_num_weight, Z_num.T, **tqdm_kwargs)
             else:
-                weight_cat = [get_cat_weight(Z_cat[:, col]) for col in tqdm(range(Z_cat.shape[1]))]
+                weight_cat = [get_cat_weight(Z_cat[:, col]) for col in tqdm(range(cat_cols))]
+                weight_num = [get_num_weight(Z_num[:, col]) for col in tqdm(range(num_cols))]
         weight_cat = np.array(weight_cat)
-        weight_num = np.ones(num_cols)
-        weight_sum = weight_cat.sum() + num_cols
+        weight_num = np.array(weight_num)
+        weight_sum = weight_cat.sum() + weight_num.sum()
+
+    # distance matrix
 
     out = np.zeros((x_n_rows, y_n_rows), dtype=np.float64)
 
