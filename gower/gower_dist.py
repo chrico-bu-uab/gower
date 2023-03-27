@@ -33,7 +33,7 @@ def get_cat_weight(x):
     if len(set(x)) <= 1:
         return 0
     one_hot = OneHotEncoder().fit_transform(np.array(x).reshape(-1, 1)).toarray()
-    var_sum = np.square(one_hot - one_hot.mean(axis=0)).sum() / (len(x) - 1)
+    var_sum = np.square(one_hot - np.nanmean(one_hot, axis=0)).sum() / (len(x) - 1)
     if isclose(var_sum, 0) or isclose(var_sum, 1):
         return 0
     n, k = one_hot.shape
@@ -43,7 +43,7 @@ def get_cat_weight(x):
 
 
 def get_num_weight(x):
-    return 1 / np.mean(np.abs(x - x.mean()))
+    return 1 / np.nanmean(np.absolute(x - np.nanmean(x)))
 
 
 def get_percentiles(X, R):
@@ -115,7 +115,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
         num_ranges[col] = abs(1 - p0 / p1) if (p1 != 0) else 0.0
 
         if knn:
-            col_array[np.isnan(col_array)] = 1.0
+            col_array = col_array[~np.isnan(col_array)]
             knn_models.append(NearestNeighbors(n_neighbors=n_knn).fit(col_array.reshape(-1, 1)))
 
     # This is to normalize the numeric values between 0 and 1.
@@ -191,9 +191,10 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
     # numerical columns
     abs_delta = np.absolute(xi_num - xj_num)
     abs_delta[abs_delta < h_t] = 0.0
-    xj_num = np.where(np.isnan(xj_num), 1.0, xj_num)
     if knn_models:
         for i, knn_model in enumerate(knn_models):
+            if np.isnan(xi_num[i]):
+                continue
             neighbors = knn_model.kneighbors(xi_num[i].reshape(-1, 1), return_distance=False)
             for j, x in enumerate(xj_num[:, i]):
                 if x in neighbors:

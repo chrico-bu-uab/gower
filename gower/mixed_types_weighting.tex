@@ -32,16 +32,16 @@
     Then, we can calculate the weight of $x$ as follows:
 
     \begin{equation}
-        w\leftarrow\tanh{\Biggl(
-        \left[\sum_c^C{\Var(h_c)}\right]
-        \left[1-\sum_c^C{\Var(h_c)}\right]
-        \Biggl[\Kurt\Biggr]\Biggr)}
+        w\leftarrow\tanh{\frac{
+        \left(\sum_c^C{\Var(h_c)}\right)
+        \left(1-\sum_c^C{\Var(h_c)}\right)
+        \Bigl(\Kurt\Bigr)}{\log{n}}}
         \label{eq:equation}
     \end{equation}
 
 
 
-    The first term in brackets is zero when all the values of the variable are the same, the second term is zero when
+    The first term in parentheses is zero when all the values of the variable are the same, the second term is zero when
     they're all different, and the third term increases with the number of classes and decreases with the number of
     observations in each class.
 

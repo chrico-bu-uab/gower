@@ -32,17 +32,17 @@ def test_answer():
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X)
-    assert aaa[0][1] == pytest.approx(0.33974801425979484), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.15321517353558364), aaa[0][1]
     Xd.iloc[:-1, -3] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, R=(30, 70), c=2)
-    assert aaa[0][1] == pytest.approx(0.7088194609407483), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.350851441161268), aaa[0][1]
     Xd.iloc[:-1, -2] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, knn=True)
-    assert aaa[0][1] == pytest.approx(0.1398021818803663), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.04585814349555527), aaa[0][1]
     Xd.iloc[:-1, -1] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
