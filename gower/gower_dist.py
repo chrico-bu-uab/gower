@@ -1,11 +1,10 @@
 from functools import partial
-from math import isclose, log, sqrt, tanh
+from math import isclose, log, sqrt
 
 import numpy as np
 from scipy.sparse import issparse
 from scipy.stats import norm
 from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -29,21 +28,50 @@ def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
     return res
 
 
+def fix_classes(x):
+    if "-1" in x:
+        x = [int(i) for i in x]
+    if -1 in x:
+        assert not any(i < -1 for i in x), x
+        x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
+    x = [np.nan if x is None else x for x in x]
+    return x
+
+
 def get_cat_weight(x):
+    """
+    Get the weight of a categorical column.
+    This value is always between 0 and 1.
+    """
+
+    if isinstance(x, np.ndarray):
+        x = x.tolist()
     if len(set(x)) <= 1:
         return 0
-    one_hot = OneHotEncoder().fit_transform(np.array(x).reshape(-1, 1)).toarray()
-    var_sum = np.square(one_hot - np.nanmean(one_hot, axis=0)).sum() / (len(x) - 1)
-    if isclose(var_sum, 0) or isclose(var_sum, 1):
-        return 0
-    n, k = one_hot.shape
-    N = n * k
-    kurtosis_flat = 1 / (N - 2) / (N - 3) * ((N ** 2 - 1) * (k + 1 / (k - 1) - 2) - 3 * (N - 1) ** 2) + 3
-    return tanh((1 - var_sum) * var_sum * kurtosis_flat / log(n))
+
+    x = fix_classes(x)
+    n = len(x)
+
+    _, counts = np.unique(x, return_counts=True)
+    largest_class_size = np.nanmax(counts)
+    singleton_count_plus = sum(np.sum(counts == i) / i for i in range(1, n + 1))
+
+    weight = 1 - (largest_class_size + singleton_count_plus - 1) / n
+    return weight
 
 
 def get_num_weight(x):
-    return 1 / np.nanmean(np.absolute(x - np.nanmean(x)))
+    assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
+    """
+    The weight of a numeric column is its entropy.
+    This value is always >= 1, given that 0 <= x <= 1.
+    x is adjusted to be between 1/n and (n-1)/n.
+    """
+    n = len(x)
+    x = np.array(x)
+    x = np.absolute(2 * x - 1)
+    y = (x * (n - 2) + 1) / n
+    return np.nanmean(np.absolute(x - np.nanmean(x))) - np.nansum(y * np.log(y))
 
 
 def get_percentiles(X, R):
@@ -104,8 +132,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     knn_models = []
     n_knn = int(sqrt(x_n_rows))
     for col in range(num_cols):
-        col_array = Z_num[:, col]
-        p0, p1 = get_percentiles(col_array, R)
+        p0, p1 = get_percentiles(Z_num[:, col], R)
 
         if np.isnan(p1):
             p1 = 0.0
@@ -113,6 +140,10 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
             p0 = 0.0
         num_max[col] = p1
         num_ranges[col] = abs(1 - p0 / p1) if (p1 != 0) else 0.0
+
+        Z_num[:, col] = np.where(Z_num[:, col] < p0, p0, Z_num[:, col])
+        Z_num[:, col] = np.where(Z_num[:, col] > p1, p1, Z_num[:, col])
+        col_array = Z_num[:, col]
 
         if knn:
             col_array = col_array[~np.isnan(col_array)]
@@ -177,7 +208,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
             out[i:, j_start] = res
 
     max_distance = np.nanmax(out)
-    assert max_distance <= 1, max_distance
+    assert isclose(max_distance, 1) or (max_distance < 1), max_distance
 
     return out
 
@@ -224,3 +255,8 @@ def gower_topn(data_x, data_y=None, weight=None, cat_features=None, n=5):
     dm = gower_matrix(data_x, data_y, weight, cat_features)
 
     return smallest_indices(np.nan_to_num(dm[0], nan=1), n)
+
+
+def do_it(sample, matrix):
+    from sklearn.cluster import DBSCAN
+    return sample, get_cat_weight(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
