@@ -1,5 +1,5 @@
 from functools import partial
-from math import isclose, log, sqrt
+from math import isclose, sqrt
 
 import numpy as np
 from scipy.sparse import issparse
