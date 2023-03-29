@@ -10,7 +10,7 @@ from tqdm.contrib.concurrent import process_map
 
 
 def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
-      weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models):
+                   weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models):
     j_start = i
     if x_n_rows != y_n_rows:
         j_start = 0
@@ -42,10 +42,12 @@ def get_cat_weight(x):
     """
     Get the weight of a categorical column.
     This value is always between 0 and 1.
+    Those with too few or too many classes (or both) are penalized.
     """
 
     if isinstance(x, np.ndarray):
         x = x.tolist()
+    x = [i for i in x if i is not None]
     if len(set(x)) <= 1:
         return 0
 
@@ -53,25 +55,26 @@ def get_cat_weight(x):
     n = len(x)
 
     _, counts = np.unique(x, return_counts=True)
-    largest_class_size = np.nanmax(counts)
+    largest_class_size = max(counts)
     singleton_count_plus = sum(np.sum(counts == i) / i for i in range(1, n + 1))
 
-    weight = 1 - (largest_class_size + singleton_count_plus - 1) / n
-    return weight
+    return 1 - (largest_class_size + singleton_count_plus - 1) / n
 
 
 def get_num_weight(x):
+    """
+    Get the weight of a numerical column.
+    This value is always non-negative.
+    It represents the "resolution" of the column as expressed in terms of entropy.
+    0-1 variables are effectively treated as categorical due to no entropy.
+    See comments.
+    """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
-    """
-    The weight of a numeric column is its entropy.
-    This value is always >= 1, given that 0 <= x <= 1.
-    x is adjusted to be between 1/n and (n-1)/n.
-    """
-    n = len(x)
-    x = np.array(x)
-    x = np.absolute(2 * x - 1)
-    y = (x * (n - 2) + 1) / n
-    return np.nanmean(np.absolute(x - np.nanmean(x))) - np.nansum(y * np.log(y))
+    x = x[~np.isnan(x)]
+    cat = get_cat_weight(x)  # base weight on number of "classes"
+    x = np.diff(np.sort(x))  # a pmf of ordered categories
+    entropy = -np.sum(np.log(x ** x))  # 0^0 = 1^1 = 1
+    return cat + np.expm1(entropy)
 
 
 def get_percentiles(X, R):
@@ -124,6 +127,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     # numeric values
 
     Z_num = Z[:, np.logical_not(cat_features)].astype(np.float64)
+    Z_num -= np.nanmin(Z_num, axis=0)
 
     num_cols = Z_num.shape[1]
     num_ranges = np.zeros(num_cols)
@@ -192,9 +196,9 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
         p0, p1 = get_percentiles(X_num, R)
         dist = norm(0, 1)
         h_t = c * x_n_rows ** -0.2 * np.minimum(np.nanstd(X_num, axis=0), (p1 - p0) / (dist.ppf(p1) - dist.ppf(p0)))
-    g = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows, X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
-                weight_cat=weight_cat, weight_num=weight_num, weight_sum=weight_sum, num_ranges=num_ranges, h_t=h_t,
-                knn_models=knn_models)
+    g = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows, X_cat=X_cat, X_num=X_num, Y_cat=Y_cat,
+                Y_num=Y_num, weight_cat=weight_cat, weight_num=weight_num, weight_sum=weight_sum, num_ranges=num_ranges,
+                h_t=h_t, knn_models=knn_models)
     if use_mp:
         processed = process_map(g, range(x_n_rows), **tqdm_kwargs)
     else:
