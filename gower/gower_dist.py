@@ -1,5 +1,4 @@
 from functools import partial
-from math import isclose, sqrt
 
 import numpy as np
 from scipy.sparse import issparse
@@ -34,7 +33,6 @@ def fix_classes(x):
     if -1 in x:
         assert not any(i < -1 for i in x), x
         x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
-    x = [np.nan if x is None else x for x in x]
     return x
 
 
@@ -42,7 +40,7 @@ def get_cat_weight(x):
     """
     Get the weight of a categorical column.
     This value is always between 0 and 1.
-    Those with too few or too many classes (or both) are penalized.
+    Those with too many or overly concentrated classes (or both) are penalized.
     """
 
     if isinstance(x, np.ndarray):
@@ -55,8 +53,8 @@ def get_cat_weight(x):
     n = len(x)
 
     _, counts = np.unique(x, return_counts=True)
-    largest_class_size = max(counts)
-    singleton_count_plus = sum(np.sum(counts == i) / i for i in range(1, n + 1))
+    largest_class_size = np.max(counts)
+    singleton_count_plus = np.sum(np.sum(counts == i) / i for i in range(1, n + 1))
 
     return 1 - (largest_class_size + singleton_count_plus - 1) / n
 
@@ -66,15 +64,27 @@ def get_num_weight(x):
     Get the weight of a numerical column.
     This value is always non-negative.
     It represents the "resolution" of the column as expressed in terms of entropy.
-    0-1 variables are effectively treated as categorical due to no entropy.
+    Binary variables are effectively treated as categorical due to no entropy.
     See comments.
     """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
     x = x[~np.isnan(x)]
-    cat = get_cat_weight(x)  # base weight on number of "classes"
-    x = np.diff(np.sort(x))  # a pmf of ordered categories
-    entropy = -np.sum(np.log(x ** x))  # 0^0 = 1^1 = 1
-    return cat + np.expm1(entropy)
+
+    # This is the base weight. It is based on the number of "classes" (i.e. unique values) in x.
+    # It will be zero if there are no unique values, same as for categorical variables.
+    base = get_cat_weight(x)
+
+    # P is a pmf of ordered categories if x in [0, 1) and any(x>0)
+    P = np.diff(np.sort(x))
+    assert np.all(0 <= P) and np.all(P <= 1), P
+    if not np.any(P > 0):
+        return base  # no entropy
+
+    # Use P to calculate the additional weight specific to numeric variables.
+    # This value is maximized if x is uniformly distributed along the unit interval (i.e. all(P==1/n)).
+    entropy = -(np.log(P ** P)).sum()  # 0^0 = 1^1 = 1
+
+    return base + (1 - base) * entropy
 
 
 def get_percentiles(X, R):
@@ -134,7 +144,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     num_max = np.zeros(num_cols)
 
     knn_models = []
-    n_knn = int(sqrt(x_n_rows))
+    n_knn = int(np.sqrt(x_n_rows))
     for col in range(num_cols):
         p0, p1 = get_percentiles(Z_num[:, col], R)
 
@@ -212,7 +222,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
             out[i:, j_start] = res
 
     max_distance = np.nanmax(out)
-    assert isclose(max_distance, 1) or (max_distance < 1), max_distance
+    assert np.isclose(max_distance, 1) or (max_distance < 1), max_distance
 
     return out
 
