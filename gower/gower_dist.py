@@ -55,8 +55,8 @@ def get_cat_weight(x):
 
     _, counts = np.unique(x, return_counts=True)
     largest_class_size = counts.max() / n
-    singleton_count_plus = (counts == 1).sum() / n
-    return np.sqrt((1 - largest_class_size) * (1 - singleton_count_plus))
+    singleton_count = (counts == 1).sum() / n
+    return np.sqrt((1 - largest_class_size) * (1 - singleton_count))
 
 
 def get_num_weight(x):
