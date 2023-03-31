@@ -76,7 +76,7 @@ def get_num_weight(x):
     # It will be zero if there are no unique values, same as for categorical variables.
     base = get_cat_weight(x)
 
-    # P is a pmf of ordered categories if x in [0, 1) and any(x>0)
+    # P is a pmf of ordered categories if x in [0, 1] and any(x>0)
     P = np.diff(np.sort(x))
     assert np.all(0 <= P) and np.all(P <= 1), P
 
