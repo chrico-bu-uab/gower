@@ -2,8 +2,9 @@ from functools import partial
 
 import numpy as np
 from scipy.sparse import issparse
-from scipy.stats import norm
+from scipy.stats import norm, rankdata
 from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -32,7 +33,7 @@ def fix_classes(x):
         x = [int(i) for i in x]
     if -1 in x:
         assert not any(i < -1 for i in x), x
-        x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
+        x = [i for i in x if i != -1] + list(range(-2, -2 - list(x).count(-1), -1))
     return x
 
 
@@ -40,7 +41,7 @@ def get_cat_weight(x):
     """
     Get the weight of a categorical column.
     This value is always between 0 and 1.
-    Those with too many or overly concentrated classes (or both) are penalized.
+    Those with either too many or overly concentrated classes (or both) are penalized.
     """
 
     if isinstance(x, np.ndarray):
@@ -53,10 +54,9 @@ def get_cat_weight(x):
     n = len(x)
 
     _, counts = np.unique(x, return_counts=True)
-    largest_class_size = np.max(counts)
-    singleton_count_plus = np.sum(np.sum(counts == i) / i for i in range(1, n + 1))
-
-    return 1 - (largest_class_size + singleton_count_plus - 1) / n
+    largest_class_size = counts.max() / n
+    singleton_count_plus = (counts == 1).sum() / n
+    return np.sqrt((1 - largest_class_size) * (1 - singleton_count_plus))
 
 
 def get_num_weight(x):
@@ -68,6 +68,8 @@ def get_num_weight(x):
     See comments.
     """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
+    if not np.any(x > 0):
+        return 0
     x = x[~np.isnan(x)]
 
     # This is the base weight. It is based on the number of "classes" (i.e. unique values) in x.
@@ -77,14 +79,10 @@ def get_num_weight(x):
     # P is a pmf of ordered categories if x in [0, 1) and any(x>0)
     P = np.diff(np.sort(x))
     assert np.all(0 <= P) and np.all(P <= 1), P
-    if not np.any(P > 0):
-        return base  # no entropy
 
-    # Use P to calculate the additional weight specific to numeric variables.
-    # This value is maximized if x is uniformly distributed along the unit interval (i.e. all(P==1/n)).
-    entropy = -(np.log(P ** P)).sum()  # 0^0 = 1^1 = 1
+    entropy = -np.log(P ** P).sum()  # 0^0 = 1^1 = 1
 
-    return base + (1 - base) * entropy
+    return base + entropy
 
 
 def get_percentiles(X, R):
