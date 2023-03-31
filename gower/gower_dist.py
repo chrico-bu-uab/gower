@@ -51,12 +51,32 @@ def get_cat_weight(x):
         return 0
 
     x = fix_classes(x)
-    n = len(x)
 
     _, counts = np.unique(x, return_counts=True)
-    largest_class_size = counts.max() / n
-    singleton_count = (counts == 1).sum() / n
-    return np.sqrt((1 - largest_class_size) * (1 - singleton_count))
+
+    largest_class_size = singleton_count = 0
+
+    # the loops differ in that the first one divides by the number of classes considered so far
+    # while the second one divides by the class size
+
+    counts_bak = counts.copy()
+    counter = 0
+    while len(counts):
+        counter += 1
+        max_count, argmax_count = np.max(counts), np.argmax(counts)
+        largest_class_size += max_count / counter
+        counts = np.delete(counts, argmax_count)
+
+    counts = counts_bak
+    counter = 0
+    while len(counts):
+        counter += 1
+        condit = counts == counter
+        singleton_count += condit.sum() / counter
+        counts = counts[~condit]
+
+    n = len(x)
+    return np.sqrt((n - largest_class_size) * (n - singleton_count)) / n
 
 
 def get_num_weight(x):
@@ -82,7 +102,7 @@ def get_num_weight(x):
 
     entropy = -np.log(P ** P).sum()  # 0^0 = 1^1 = 1
 
-    return base + entropy
+    return base + (1 - base) * entropy
 
 
 def get_percentiles(X, R):
