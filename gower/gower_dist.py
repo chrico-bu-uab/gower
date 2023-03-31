@@ -1,10 +1,10 @@
 from functools import partial
+from math import sqrt
 
 import numpy as np
 from scipy.sparse import issparse
-from scipy.stats import norm, rankdata
+from scipy.stats import norm
 from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import OneHotEncoder
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -76,7 +76,7 @@ def get_cat_weight(x):
         counts = counts[~condit]
 
     n = len(x)
-    return np.sqrt((n - largest_class_size) * (n - singleton_count)) / n
+    return sqrt((n - largest_class_size) * (n - singleton_count)) / n
 
 
 def get_num_weight(x):
@@ -162,7 +162,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     num_max = np.zeros(num_cols)
 
     knn_models = []
-    n_knn = int(np.sqrt(x_n_rows))
+    n_knn = int(sqrt(x_n_rows))
     for col in range(num_cols):
         p0, p1 = get_percentiles(Z_num[:, col], R)
 
