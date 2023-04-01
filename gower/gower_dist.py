@@ -1,5 +1,4 @@
 from functools import partial
-from math import sqrt
 
 import numpy as np
 from scipy.sparse import issparse
@@ -37,7 +36,7 @@ def fix_classes(x):
     return x
 
 
-def get_cat_weight(x):
+def get_cat_weight(x, for_cat=True):
     """
     Get the weight of a categorical column.
     This value is always between 0 and 1.
@@ -47,12 +46,17 @@ def get_cat_weight(x):
     if isinstance(x, np.ndarray):
         x = x.tolist()
     x = [i for i in x if i is not None]
-    if len(set(x)) <= 1:
-        return 0
+    if len(x) <= 2 or len(set(x)) <= 1:
+        return 0.0
+    if for_cat and all(isinstance(i, float) or isinstance(i, bool) for i in x):
+        return 1.0
 
     x = fix_classes(x)
 
     _, counts = np.unique(x, return_counts=True)
+    k = len(counts)
+    if for_cat and k == 2:
+        return 1.0
 
     largest_class_size = singleton_count = 0
 
@@ -75,8 +79,9 @@ def get_cat_weight(x):
         singleton_count += condit.sum() / counter
         counts = counts[~condit]
 
+    factor = (k - 2) / (k - 1) if for_cat else 1.0
     n = len(x)
-    return sqrt((n - largest_class_size) * (n - singleton_count)) / n
+    return factor * np.sqrt((n - largest_class_size) * (n - singleton_count)) / n
 
 
 def get_num_weight(x):
@@ -84,25 +89,16 @@ def get_num_weight(x):
     Get the weight of a numerical column.
     This value is always non-negative.
     It represents the "resolution" of the column as expressed in terms of entropy.
-    Binary variables are effectively treated as categorical due to no entropy.
-    See comments.
+    Binary variables get the lowest weight due to no entropy.
     """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
-    if not np.any(x > 0):
-        return 0
-    x = x[~np.isnan(x)]
-
-    # This is the base weight. It is based on the number of "classes" (i.e. unique values) in x.
-    # It will be zero if there are no unique values, same as for categorical variables.
-    base = get_cat_weight(x)
+    x = x[~np.isnan(x)] * 1.0
 
     # P is a pmf of ordered categories if x in [0, 1] and any(x>0)
     P = np.diff(np.sort(x))
     assert np.all(0 <= P) and np.all(P <= 1), P
 
-    entropy = -np.log(P ** P).sum()  # 0^0 = 1^1 = 1
-
-    return base + (1 - base) * entropy
+    return 1.0 - np.log(P ** P).sum() if len(P) else 1.0  # 0^0 = 1
 
 
 def get_percentiles(X, R):
@@ -162,7 +158,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
     num_max = np.zeros(num_cols)
 
     knn_models = []
-    n_knn = int(sqrt(x_n_rows))
+    n_knn = int(np.sqrt(x_n_rows))
     for col in range(num_cols):
         p0, p1 = get_percentiles(Z_num[:, col], R)
 
@@ -208,6 +204,7 @@ def gower_matrix(data_x, data_y=None, weight=None, cat_features=None, R=(0, 100)
                 weight_num = [get_num_weight(Z_num[:, col]) for col in tqdm(range(num_cols))]
         weight_cat = np.array(weight_cat)
         weight_num = np.array(weight_num)
+        print(weight_cat, weight_num)
         weight_sum = weight_cat.sum() + weight_num.sum()
 
     # distance matrix
@@ -291,4 +288,4 @@ def gower_topn(data_x, data_y=None, weight=None, cat_features=None, n=5):
 
 def do_it(sample, matrix):
     from sklearn.cluster import DBSCAN
-    return sample, get_cat_weight(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
+    return sample, get_cat_weight(DBSCAN(metric="precomputed", **sample).fit_predict(matrix), for_cat=False)
