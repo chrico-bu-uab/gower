@@ -1,10 +1,9 @@
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.mixture import GaussianMixture
 
 import gower
-
-from sklearn.mixture import GaussianMixture
 
 np.set_printoptions(precision=0, suppress=True)
 pd.set_option('display.max_columns', None)
@@ -26,23 +25,23 @@ def test_answer():
     Xd['h_t'] = None
     Xd['knn'] = None
 
-    aaa = gower.gower_matrix(X, weight="uniform")
+    aaa = gower.gower_matrix(X, weight_cat="uniform", weight_num="uniform")
     assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
     Xd.iloc[:-1, -4] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X)
-    assert aaa[0][1] == pytest.approx(0.24202809991213614), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.27430869751224973), aaa[0][1]
     Xd.iloc[:-1, -3] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, R=(30, 70), c=2)
-    assert aaa[0][1] == pytest.approx(0.7894343214182593), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.8351356636176901), aaa[0][1]
     Xd.iloc[:-1, -2] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, knn=True)
-    assert aaa[0][1] == pytest.approx(0.09389007064385405), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.16781469923188938), aaa[0][1]
     Xd.iloc[:-1, -1] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
