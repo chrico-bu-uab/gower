@@ -230,16 +230,8 @@ def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
     if x_n_rows != y_n_rows:
         j_start = 0
     # call the main function
-    res = gower_get(X_cat[i, :],
-                    X_num[i, :],
-                    Y_cat[j_start:y_n_rows, :],
-                    Y_num[j_start:y_n_rows, :],
-                    weight_cat,
-                    weight_num,
-                    weight_sum,
-                    num_ranges,
-                    h_t,
-                    knn_models)
+    res = gower_get(X_cat[i, :], X_num[i, :], Y_cat[j_start:y_n_rows, :], Y_num[j_start:y_n_rows, :],
+                    weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models)
     return res
 
 
