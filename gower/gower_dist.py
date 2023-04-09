@@ -2,6 +2,7 @@ from functools import partial
 
 import numpy as np
 from scipy.sparse import issparse
+from scipy.special import gammaln
 from scipy.stats import norm
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
@@ -28,6 +29,9 @@ def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
 
 
 def fix_classes(x):
+    if isinstance(x, np.ndarray):
+        x = x.tolist()
+    x = [i for i in x if i is not None]
     if "-1" in x:
         x = [int(i) for i in x]
     if -1 in x:
@@ -36,78 +40,26 @@ def fix_classes(x):
     return x
 
 
-def get_cat_weight(x):
-    """
-    This value is always between 0 and 1.
-    Too many or overly concentrated classes (or both) are penalized.
-    """
-
-    if isinstance(x, np.ndarray):
-        x = x.tolist()
-    x = [i for i in x if i is not None]
-
+def cluster_certainty(x):
     x = fix_classes(x)
-    n = len(x)
-
     _, counts = np.unique(x, return_counts=True)
-
-    class_size_factor = singletons_factor = 0
-
-    # the loops differ in that the first one divides
-    # by the number of classes considered so far
-    # while the second one divides by the class size
-
-    counts_bak = counts.copy()
-    counter = 0
-    harmonic = 0
-    while len(counts):
-        counter += 1
-        max_count, argmax_count = np.max(counts), np.argmax(counts)
-        class_size_factor += max_count / counter
-        counts = np.delete(counts, argmax_count)
-        harmonic += 1 / counter
-    class_size_factor = (n - class_size_factor) / (n - harmonic)
-
-    counts = counts_bak
-    counter = 0
-    while len(counts):
-        counter += 1
-        condit = counts == counter
-        singletons_factor += condit.sum() / counter
-        counts = counts[~condit]
-    singletons_factor = (n - singletons_factor) / (n - 1 / n)
-
-    return np.sqrt(class_size_factor * singletons_factor)
+    return 1 - (gammaln(len(counts) + 1) + gammaln(counts + 1).sum()) / gammaln(len(x) + 1)
 
 
 def evaluate_clusters(sample, matrix):
     from sklearn.cluster import DBSCAN
-    return sample, get_cat_weight(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
+    return sample, cluster_certainty(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
 
 
-def get_num_weight(x, uniform_cat=False):
+def get_num_weight(x):
     """
-    Get the weight of a numerical column.
-    This value is always non-negative.
-    It represents the "resolution" of the column as expressed in terms of entropy.
-    Binary variables get the lowest weight due to no entropy.
+    This value is always between 1 and 1+log2(len(x)). It represents the "resolution" of the column as expressed in
+    terms of entropy. Binary variables get the lowest weight of one due to no entropy.
     """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
     x = x[~np.isnan(x)] * 1.0
-
-    if uniform_cat:
-        base = 1.0
-        factor = 1.0
-    else:
-        base = get_cat_weight(x)
-        factor = 1.0 - base
-
-    P = np.diff(np.sort(x))  # a pmf of ordered categories
-
-    P = P[P > 0]
-    if len(P):
-        return base - factor * (P * np.log(P)).sum()  # entropy
-    return base
+    x = np.diff(np.sort(x))  # a pmf of ordered categories
+    return 1 + np.log2(np.prod(x ** -x))  # entropy
 
 
 def get_percentiles(X, R):
@@ -197,18 +149,17 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
 
     # weights
 
-    uniform_cat = False
     if isinstance(weight_cat, str):
         if weight_cat == "uniform":
             weight_cat = np.ones(cat_cols)
-            uniform_cat = True
         else:
             raise ValueError("Unknown weight_cat: {}".format(weight_cat))
     elif weight_cat is None:
-        if use_mp:
-            weight_cat = process_map(get_cat_weight, Z_cat.T, **tqdm_kwargs)
-        else:
-            weight_cat = [get_cat_weight(Z_cat[:, col]) for col in tqdm(range(cat_cols))]
+        # if use_mp:
+        #     weight_cat = process_map(get_cat_weight, Z_cat.T, **tqdm_kwargs)
+        # else:
+        #     weight_cat = [get_cat_weight(Z_cat[:, col]) for col in tqdm(range(cat_cols))]
+        weight_cat = np.ones(cat_cols)
     weight_cat = np.array(weight_cat)
 
     if isinstance(weight_num, str):
@@ -217,11 +168,10 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
         else:
             raise ValueError("Unknown weight_num: {}".format(weight_num))
     elif weight_num is None:
-        f = partial(get_num_weight, uniform_cat=uniform_cat)
         if use_mp:
-            weight_num = process_map(f, Z_num.T, **tqdm_kwargs)
+            weight_num = process_map(get_num_weight, Z_num.T, **tqdm_kwargs)
         else:
-            weight_num = [f(Z_num[:, col]) for col in tqdm(range(num_cols))]
+            weight_num = [get_num_weight(Z_num[:, col]) for col in tqdm(range(num_cols))]
     weight_num = np.array(weight_num)
 
     print(weight_cat, weight_num)
@@ -241,7 +191,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
         p0, p1 = get_percentiles(X_num, R)
         dist = norm(0, 1)
         h_t = c * x_n_rows ** -0.2 * np.minimum(np.nanstd(X_num, axis=0),
-                                                (p1 - p0) / (dist.ppf(p1) - dist.ppf(p0)))
+                                                (p1 - p0) / (dist.ppf(R[1] / 100) - dist.ppf(R[0] / 100)))
     g = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows,
                 X_cat=X_cat, X_num=X_num, Y_cat=Y_cat,
                 Y_num=Y_num, weight_cat=weight_cat, weight_num=weight_num,

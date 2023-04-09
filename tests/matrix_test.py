@@ -22,26 +22,32 @@ def test_answer():
     X = np.asarray(Xd)
     Xd['uniform'] = None
     Xd['auto'] = None
+    Xd['R'] = None
     Xd['h_t'] = None
     Xd['knn'] = None
 
     aaa = gower.gower_matrix(X, weight_cat="uniform", weight_num="uniform")
     assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
-    Xd.iloc[:-1, -4] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
+    Xd.iloc[:-1, -5] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X)
-    assert aaa[0][1] == pytest.approx(0.27430869751224973), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.2573185046411841), aaa[0][1]
+    Xd.iloc[:-1, -4] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
+    print(pd.DataFrame(aaa).describe())
+
+    aaa = gower.gower_matrix(X, R=(30, 70))
+    assert aaa[0][1] == pytest.approx(0.7483485762727228), aaa[0][1]
     Xd.iloc[:-1, -3] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
-    aaa = gower.gower_matrix(X, R=(30, 70), c=2)
-    assert aaa[0][1] == pytest.approx(0.8351356636176901), aaa[0][1]
+    aaa = gower.gower_matrix(X, R=(30, 70), c=3.5)
+    assert aaa[0][1] == pytest.approx(0.12582571186363858), aaa[0][1]
     Xd.iloc[:-1, -2] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, knn=True)
-    assert aaa[0][1] == pytest.approx(0.16781469923188938), aaa[0][1]
+    assert aaa[0][1] == pytest.approx(0.1473883030057912), aaa[0][1]
     Xd.iloc[:-1, -1] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
