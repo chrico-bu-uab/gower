@@ -1,9 +1,11 @@
 from functools import partial
 
 import numpy as np
+from dython.nominal import associations
 from scipy.sparse import issparse
 from scipy.special import gammaln
 from scipy.stats import norm
+from sklearn.cluster import DBSCAN
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -28,7 +30,6 @@ def cluster_certainty(x):
 
 
 def evaluate_clusters(sample, matrix):
-    from sklearn.cluster import DBSCAN
     return sample, cluster_certainty(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
 
 
@@ -41,6 +42,30 @@ def get_num_weight(x):
     x = x[~np.isnan(x)] * 1.0
     x = np.diff(np.sort(x))  # a pmf of ordered categories
     return 1 + np.log2(np.prod(x ** -x))  # entropy
+
+
+def optimize_clusters(df, weight_num=None, factor=0.5, n_iter=100):
+    df = df.copy()
+
+    matrix = gower_matrix(df.to_numpy(), weight_num=weight_num, chunksize=20)
+    samples = [{"eps": 2 * factor * z / n_iter, "min_samples": 1} for z in range(1, n_iter + 1)]
+    results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=3)
+
+    best_params = max(results, key=lambda z: z[1])
+    df["cluster"] = DBSCAN(metric="precomputed", **best_params[0]).fit_predict(matrix)
+    df.cluster = df.cluster.astype(str)
+    _, counts = np.unique(df.cluster, return_counts=True)
+    class_sizes, class_counts = np.unique(counts, return_counts=True)
+
+    corr = associations(df, nom_nom_assoc="theil", plot=True)["corr"]
+    print(*best_params, (corr.cluster.mean() + corr.T.cluster.mean()) / 2)
+    print(dict(zip(class_sizes, class_counts)))
+
+    df["count_per_cluster"] = df.groupby("cluster").transform("count").iloc[:, 0]
+    df.sort_values(["count_per_cluster", "cluster"], ascending=[False, True], inplace=True)
+    df.drop("count_per_cluster", axis=1, inplace=True)
+
+    return df
 
 
 def get_percentiles(X, R):
