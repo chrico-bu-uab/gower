@@ -11,6 +11,17 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
+def get_num_weight(x):
+    """
+    This value is always between 1 and 1+log2(len(x)). It represents the "resolution" of the column as expressed in
+    terms of entropy. Binary variables get the lowest weight of 1 due to no entropy.
+    """
+    assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
+    x = x[~np.isnan(x)] * 1.0
+    x = np.diff(np.sort(x))  # a pmf of ordered categories
+    return 1 + np.log2(np.prod(x ** -x))  # entropy
+
+
 def fix_classes(x):
     if isinstance(x, np.ndarray):
         x = x.tolist()
@@ -23,33 +34,50 @@ def fix_classes(x):
     return x
 
 
-def cluster_certainty(x):
+def cluster_quality(x):
+    """
+    This value is always between 0 and 1. It represents the "intrinsic quality" of the clustering as expressed in terms
+    of entropy. Note that this value is NOT a measure of the separation between clusters; rather, this is purely based
+    on the cluster assignments themselves. The higher the value, the more "well-formed" the clusters are.
+
+    This model supposes that there exists some ordering underlying the elements of the clusters, and that the
+    uncertainty of the ordering depends on the distribution of the clusters and comprises two components:
+
+    1. The uncertainty of the ordering of the elements within each cluster
+    2. The uncertainty of the ordering of the clusters themselves
+
+    The bigger the clusters, the more uncertainty there is in the ordering of the elements within each cluster.
+    Similarly, the more clusters there are, the more uncertainty there is in the ordering of the clusters.
+
+    The total number of possible orderings is given by the multinomial coefficient (which is the product of the
+    factorials of the number of elements in each cluster) times the number of permutations of the clusters. The log of
+    this value is taken and then divided by the log of the number of ways to order the elements ignoring clusters. This
+    value is then subtracted from 1 to get the final value.
+
+    To avoid overflow, the gammaln function and summation are used in lieu of taking logs, factorials, and products.
+
+    Note that this value is NOT intended to be used to weight categorical variables, which should receive a weight of 1
+    (the weight binary numeric variables get).
+    """
     x = fix_classes(x)
     _, counts = np.unique(x, return_counts=True)
-    return 1 - (gammaln(len(counts) + 1) + gammaln(counts + 1).sum()) / gammaln(len(x) + 1)
+    return 1 - gammaln(np.append(counts, len(counts)) + 1).sum() / gammaln(len(x) + 1)
 
 
 def evaluate_clusters(sample, matrix):
-    return sample, cluster_certainty(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
+    return sample, cluster_quality(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
 
 
-def get_num_weight(x):
-    """
-    This value is always between 1 and 1+log2(len(x)). It represents the "resolution" of the column as expressed in
-    terms of entropy. Binary variables get the lowest weight of one due to no entropy.
-    """
-    assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
-    x = x[~np.isnan(x)] * 1.0
-    x = np.diff(np.sort(x))  # a pmf of ordered categories
-    return 1 + np.log2(np.prod(x ** -x))  # entropy
-
-
-def optimize_clusters(df, weight_num=None, factor=0.5, n_iter=100):
+def optimize_clusters(df, weight_num=None, factor=0.5, n_iter=100, use_mp=True):
     df = df.copy()
-
-    matrix = gower_matrix(df.to_numpy(), weight_num=weight_num, chunksize=20)
     samples = [{"eps": 2 * factor * z / n_iter, "min_samples": 1} for z in range(1, n_iter + 1)]
-    results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=3)
+
+    if use_mp:
+        matrix = gower_matrix(df.to_numpy(), weight_num=weight_num, chunksize=20)
+        results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=3)
+    else:
+        matrix = gower_matrix(df.to_numpy(), weight_num=weight_num, use_mp=False)
+        results = [evaluate_clusters(sample, matrix) for sample in tqdm(samples)]
 
     best_params = max(results, key=lambda z: z[1])
     df["cluster"] = DBSCAN(metric="precomputed", **best_params[0]).fit_predict(matrix)
@@ -57,7 +85,7 @@ def optimize_clusters(df, weight_num=None, factor=0.5, n_iter=100):
     _, counts = np.unique(df.cluster, return_counts=True)
     class_sizes, class_counts = np.unique(counts, return_counts=True)
 
-    corr = associations(df, nom_nom_assoc="theil", plot=True)["corr"]
+    corr = associations(df, nom_nom_assoc="theil", figsize=(df.shape[1], df.shape[1]))["corr"]
     print(*best_params, (corr.cluster.mean() + corr.T.cluster.mean()) / 2)
     print(dict(zip(class_sizes, class_counts)))
 
