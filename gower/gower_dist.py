@@ -9,25 +9,6 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
-def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
-                   weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models):
-    j_start = i
-    if x_n_rows != y_n_rows:
-        j_start = 0
-    # call the main function
-    res = gower_get(X_cat[i, :],
-                    X_num[i, :],
-                    Y_cat[j_start:y_n_rows, :],
-                    Y_num[j_start:y_n_rows, :],
-                    weight_cat,
-                    weight_num,
-                    weight_sum,
-                    num_ranges,
-                    h_t,
-                    knn_models)
-    return res
-
-
 def fix_classes(x):
     if isinstance(x, np.ndarray):
         x = x.tolist()
@@ -241,6 +222,25 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
     sum_sij = np.divide(sums, feature_weight_sum)
 
     return sum_sij
+
+
+def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
+                   weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models):
+    j_start = i
+    if x_n_rows != y_n_rows:
+        j_start = 0
+    # call the main function
+    res = gower_get(X_cat[i, :],
+                    X_num[i, :],
+                    Y_cat[j_start:y_n_rows, :],
+                    Y_num[j_start:y_n_rows, :],
+                    weight_cat,
+                    weight_num,
+                    weight_sum,
+                    num_ranges,
+                    h_t,
+                    knn_models)
+    return res
 
 
 def smallest_indices(ary, n):
