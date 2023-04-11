@@ -12,13 +12,14 @@ from tqdm.contrib.concurrent import process_map
 
 def get_num_weight(x):
     """
-    This value is always between 1 and 1+log2(len(x)). It represents the "resolution" of the column as expressed in
-    terms of entropy. Binary variables get the lowest weight of 1 due to no entropy.
+    This value is always between 1 and len(x).
+    It represents the "resolution" of the column as expressed in terms of entropy.
+    Binary variables get the lowest weight of 1 due to no entropy.
     """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
     x = x[~np.isnan(x)] * 1.0
     x = np.diff(np.sort(x))  # a pmf of ordered categories
-    return 1 + np.log2(np.prod(x ** -x))  # entropy
+    return np.prod(x ** -x)  # entropy
 
 
 def fix_classes(x):
@@ -39,7 +40,8 @@ def cluster_quality(x):
     It is NOT a measure of the separation between clusters.
 
     If there is only one cluster or all of the clusters are singletons, the value is 0.
-    If the clusters are well-formed, the value is 1.
+    The value approaches 1 as the clusters get more evenly distributed,
+    the number of clusters approaches sqrt(n), and n approaches infinity.
     """
     x = fix_classes(x)
     _, counts = np.unique(x, return_counts=True)
