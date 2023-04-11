@@ -37,6 +37,9 @@ def cluster_quality(x):
     """
     This value measures how well-formed the clusters are, agnostic to how the clusters were assigned.
     It is NOT a measure of the separation between clusters.
+
+    If there is only one cluster or all of the clusters are singletons, the value is 0.
+    If the clusters are well-formed, the value is 1.
     """
     x = fix_classes(x)
     _, counts = np.unique(x, return_counts=True)
