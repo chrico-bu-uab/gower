@@ -3,7 +3,6 @@ from functools import partial
 import numpy as np
 from dython.nominal import associations
 from scipy.sparse import issparse
-from scipy.special import gammaln
 from scipy.stats import norm
 from sklearn.cluster import DBSCAN
 from sklearn.neighbors import NearestNeighbors
@@ -36,32 +35,28 @@ def fix_classes(x):
 
 def cluster_quality(x):
     """
-    This value is always between 0 and 1. It represents the "intrinsic quality" of the clustering as expressed in terms
-    of entropy. Note that this value is NOT a measure of the separation between clusters; rather, this is purely based
-    on the cluster assignments themselves. The higher the value, the more "well-formed" the clusters are.
-
-    This model supposes that there exists some ordering underlying the elements of the clusters, and that the
-    uncertainty of the ordering depends on the distribution of the clusters and comprises two components:
-
-    1. The uncertainty of the ordering of the elements within each cluster
-    2. The uncertainty of the ordering of the clusters themselves
-
-    The bigger the clusters, the more uncertainty there is in the ordering of the elements within each cluster.
-    Similarly, the more clusters there are, the more uncertainty there is in the ordering of the clusters.
-
-    The total number of possible orderings is given by the multinomial coefficient (which is the product of the
-    factorials of the number of elements in each cluster) times the number of permutations of the clusters. The log of
-    this value is taken and then divided by the log of the number of ways to order the elements ignoring clusters. This
-    value is then subtracted from 1 to get the final value.
-
-    To avoid overflow, the gammaln function and summation are used in lieu of taking logs, factorials, and products.
-
-    Note that this value is NOT intended to be used to weight categorical variables, which should receive a weight of 1
-    (the weight binary numeric variables get).
+    This value measures how well-formed the clusters are, agnostic to how the clusters were assigned.
+    It is NOT a measure of the separation between clusters.
     """
     x = fix_classes(x)
     _, counts = np.unique(x, return_counts=True)
-    return 1 - gammaln(np.append(counts, len(counts)) + 1).sum() / gammaln(len(x) + 1)
+    class_size_factor = singletons_factor = 0
+    normalise = lambda y: (len(x) ** 2 - y) / (len(x) * (len(x) - 1))
+
+    counts_bak = counts.copy()
+    while len(counts):
+        class_size_factor += np.max(counts) ** 2
+        counts = np.delete(counts, np.argmax(counts))
+
+    counts = counts_bak
+    counter = 0
+    while len(counts):
+        counter += 1
+        condit = counts == counter
+        singletons_factor += counter * condit.sum() ** 2
+        counts = counts[~condit]
+
+    return normalise(class_size_factor) * normalise(singletons_factor)
 
 
 def evaluate_clusters(sample, matrix):
@@ -146,7 +141,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
 
     # numeric values
 
-    Z_num = Z[:, np.logical_not(cat_features)].astype(np.float64)
+    Z_num = Z[:, np.logical_not(cat_features)].astype(np.float32)
     Z_num -= np.nanmin(Z_num, axis=0)
 
     num_cols = Z_num.shape[1]
@@ -213,19 +208,19 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
 
     # distance matrix
 
-    out = np.zeros((x_n_rows, y_n_rows), dtype=np.float64)
+    out = np.zeros((x_n_rows, y_n_rows), dtype=np.float32)
 
     X_cat = Z_cat[x_index, ]
     X_num = Z_num[x_index, ]
     Y_cat = Z_cat[y_index, ]
     Y_num = Z_num[y_index, ]
 
-    h_t = np.zeros(num_cols, dtype=np.float64)
+    h_t = np.zeros(num_cols, dtype=np.float32)
     if c > 0:
         p0, p1 = get_percentiles(X_num, R)
         dist = norm(0, 1)
-        h_t = c * x_n_rows ** -0.2 * np.minimum(np.nanstd(X_num, axis=0),
-                                                (p1 - p0) / (dist.ppf(R[1] / 100) - dist.ppf(R[0] / 100)))
+        h_t = c * x_n_rows ** -0.2 * np.minimum(
+            np.nanstd(X_num, axis=0), (p1 - p0) / (dist.ppf(R[1] / 100) - dist.ppf(R[0] / 100)))
     g = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows,
                 X_cat=X_cat, X_num=X_num, Y_cat=Y_cat,
                 Y_num=Y_num, weight_cat=weight_cat, weight_num=weight_num,
@@ -236,9 +231,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
     else:
         processed = list(map(g, tqdm(range(x_n_rows))))
     for i, res in enumerate(processed):
-        j_start = i
-        if x_n_rows != y_n_rows:
-            j_start = 0
+        j_start = i if x_n_rows == y_n_rows else 0
         out[i, j_start:] = res
         if x_n_rows == y_n_rows:
             out[i:, j_start] = res
@@ -279,9 +272,7 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
 
 def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
                    weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models):
-    j_start = i
-    if x_n_rows != y_n_rows:
-        j_start = 0
+    j_start = i if x_n_rows == y_n_rows else 0
     # call the main function
     res = gower_get(X_cat[i, :], X_num[i, :], Y_cat[j_start:y_n_rows, :], Y_num[j_start:y_n_rows, :],
                     weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models)
