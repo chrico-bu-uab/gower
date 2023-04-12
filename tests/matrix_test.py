@@ -6,7 +6,7 @@ from sklearn.mixture import GaussianMixture
 import gower
 
 np.set_printoptions(precision=0, suppress=True)
-pd.set_option('display.max_columns', None)
+pd.set_option('display.max_columns', 999)
 
 
 def test_answer():
@@ -52,5 +52,4 @@ def test_answer():
         Xd[col] = Xd[col].apply(lambda x: chr(i + x) if x is not None else None)
         i += len(Xd[col].dropna().unique())
 
-    print(Xd.iloc[:, :6])
-    print(Xd.iloc[:, 6:].sort_values(by='uniform'))
+    print(Xd.sort_values(['uniform', 'auto', 'R', 'h_t', 'knn']))
