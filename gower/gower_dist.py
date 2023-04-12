@@ -1,3 +1,4 @@
+import math
 from functools import partial
 
 import numpy as np
@@ -36,23 +37,25 @@ def fix_classes(x):
 
 def cluster_niceness(X):
     """
-    This value measures how "nice" the clusters are.
-    It is NOT a measure of the separation between clusters or anything else related to the underlying data.
-    A "nice" set of clusters is evenly distributed and has a count equal to the square root of the number of elements.
+    This value tells you whether clusters are "nice".
+    It is NOT a measure of the separation between clusters or anything else related to underlying data.
+    A "nice" set of clusters is simply one that is evenly distributed and has a count equal to the square root of the
+    number of elements it comprises.
 
-    If there is only one cluster OR all of the clusters are singletons, the value is 0.
-    If the clusters are evenly distributed AND the number of clusters equals the square root of the number of elements,
-    the value is 1. Otherwise, the value is between 0 and 1.
+    If there is only one cluster OR the clusters are all singletons, the value is 0.
+    If the elements are evenly distributed AND the number of clusters equals the square root of the number of elements,
+    the value is 1.
+    Otherwise, the value is on the open interval (0, 1).
 
     Inputs:
         X: A 1D array of cluster sizes.
 
     Outputs:
-        A float between 0 and 1.
+        A float on the closed interval [0, 1].
     """
-    N = X.sum()
-    f = lambda a, b, c: (a - b) / (a - c)
-    return f(N ** 2, np.sum(X ** 2), N) * f(N, len(X), 1) * (1 + 2 / np.sqrt(N) + 1 / N)
+    n_el = X.sum()
+    normalise = lambda z: (n_el - z) / (n_el - 1)
+    return normalise((X ** 2).sum() / n_el) * normalise(len(X)) * (1 + 2 / math.sqrt(n_el) + 1 / n_el)
 
 
 def evaluate_clusters(sample, matrix):
@@ -153,7 +156,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
     num_max = np.zeros(num_cols)
 
     knn_models = []
-    n_knn = int(np.sqrt(x_n_rows))
+    n_knn = int(math.sqrt(x_n_rows))
     for col in range(num_cols):
         p0, p1 = get_percentiles(Z_num[:, col], R)
 
@@ -241,7 +244,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
             out[i:, j_start] = res
 
     max_distance = np.nanmax(out)
-    assert np.isclose(max_distance, 1) or (max_distance < 1), max_distance
+    assert math.isclose(max_distance, 1) or (max_distance < 1), max_distance
 
     return out if not return_weight_num else (out, weight_num)
 
