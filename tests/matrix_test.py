@@ -30,27 +30,22 @@ def test_answer():
     aaa = gower.gower_matrix(X, weight_cat="uniform", weight_num="uniform")
     assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
     Xd.iloc[:-1, -5] = gm.fit_predict(aaa[:-1, :-1])
-    print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X)
     assert aaa[0][1] == pytest.approx(0.32100430130958557), aaa[0][1]
     Xd.iloc[:-1, -4] = gm.fit_predict(aaa[:-1, :-1])
-    print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, R=(30, 70))
     assert aaa[0][1] == pytest.approx(0.6944147348403931), aaa[0][1]
     Xd.iloc[:-1, -3] = gm.fit_predict(aaa[:-1, :-1])
-    print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, R=(30, 70), c=3.5)
     assert aaa[0][1] == pytest.approx(0.15279258787631989), aaa[0][1]
     Xd.iloc[:-1, -2] = gm.fit_predict(aaa[:-1, :-1])
-    print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, knn=True)
     assert aaa[0][1] == pytest.approx(0.17561160027980804), aaa[0][1]
     Xd.iloc[:-1, -1] = gm.fit_predict(aaa[:-1, :-1])
-    print(pd.DataFrame(aaa).describe())
 
     i = 65
     for col in Xd.iloc[:, 6:].columns:
