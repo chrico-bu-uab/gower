@@ -30,42 +30,48 @@ def fix_classes(x):
         x = [int(i) for i in x]
     if -1 in x:
         assert not any(i < -1 for i in x), x
-        x = [i for i in x if i != -1] + list(range(-2, -2 - list(x).count(-1), -1))
+        x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
     return x
 
 
-def cluster_quality(x):
+def cluster_niceness(X):
     """
-    This value measures how well-formed the clusters are, agnostic to how the clusters were assigned.
-    It is NOT a measure of the separation between clusters.
+    This value measures how "nice" the clusters are.
+    It is NOT a measure of the separation between clusters or anything else related to the underlying data.
+    A "nice" set of clusters is evenly distributed and has a count equal to the square root of the number of elements.
 
-    If there is only one cluster or all of the clusters are singletons, the value is 0.
-    The value approaches 1 as the clusters get more evenly distributed,
-    the number of clusters approaches sqrt(n), and n approaches infinity.
+    If there is only one cluster OR all of the clusters are singletons, the value is 0.
+    If the clusters are evenly distributed AND the number of clusters equals the square root of the number of elements,
+    the value is 1. Otherwise, the value is between 0 and 1.
+
+    Inputs:
+        X: A 1D array of cluster sizes.
+
+    Outputs:
+        A float between 0 and 1.
     """
-    x = fix_classes(x)
-    _, counts = np.unique(x, return_counts=True)
-    class_size_factor = singletons_factor = 0
-    normalise = lambda y: (len(x) ** 2 - y) / (len(x) * (len(x) - 1))
-
-    counts_bak = counts.copy()
-    while len(counts):
-        class_size_factor += np.max(counts) ** 2
-        counts = np.delete(counts, np.argmax(counts))
-
-    counts = counts_bak
-    counter = 0
-    while len(counts):
-        counter += 1
-        condit = counts == counter
-        singletons_factor += counter * condit.sum() ** 2
-        counts = counts[~condit]
-
-    return normalise(class_size_factor) * normalise(singletons_factor)
+    N = X.sum()
+    f = lambda a, b, c: (a - b) / (a - c)
+    return f(N ** 2, np.sum(X ** 2), N) * f(N, len(X), 1) * (1 + 2 / np.sqrt(N) + 1 / N)
 
 
 def evaluate_clusters(sample, matrix):
-    return sample, cluster_quality(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
+    assignments = fix_classes(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
+    _, counts = np.unique(assignments, return_counts=True)
+    return sample, cluster_niceness(counts)
+
+
+def get_cat_features(X):
+    if not isinstance(X, np.ndarray):
+        is_number = np.vectorize(lambda x: not np.issubdtype(x, np.number))
+        cat_features = is_number(X.dtypes)
+    else:
+        x_n_cols = X.shape[1]
+        cat_features = np.zeros(x_n_cols, dtype=bool)
+        for col in range(x_n_cols):
+            if not np.issubdtype(type(X[0, col]), np.number):
+                cat_features[col] = True
+    return cat_features
 
 
 def optimize_clusters(df, weight_num=None, factor=0.5, n_iter=100, use_mp=True):
@@ -102,7 +108,7 @@ def get_percentiles(X, R):
 
 def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
                  cat_features=None, R=(0, 100), c=0.0, knn=False,
-                 use_mp=True, **tqdm_kwargs):
+                 use_mp=True, return_weight_num=False, **tqdm_kwargs):
     # function checks
     X = data_x
     if data_y is None:
@@ -123,14 +129,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
     y_n_rows, y_n_cols = Y.shape
 
     if cat_features is None:
-        if not isinstance(X, np.ndarray):
-            is_number = np.vectorize(lambda x: not np.issubdtype(x, np.number))
-            cat_features = is_number(X.dtypes)
-        else:
-            cat_features = np.zeros(x_n_cols, dtype=bool)
-            for col in range(x_n_cols):
-                if not np.issubdtype(type(X[0, col]), np.number):
-                    cat_features[col] = True
+        cat_features = get_cat_features(X)
     else:
         cat_features = np.array(cat_features)
 
@@ -244,7 +243,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
     max_distance = np.nanmax(out)
     assert np.isclose(max_distance, 1) or (max_distance < 1), max_distance
 
-    return out
+    return out if not return_weight_num else (out, weight_num)
 
 
 def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
