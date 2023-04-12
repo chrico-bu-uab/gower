@@ -16,6 +16,8 @@ def get_num_weight(x):
     This value is always between 1 and len(x).
     It represents the "resolution" of the column as expressed in terms of entropy.
     Binary variables get the lowest weight of 1 due to no entropy.
+
+    However, the weights obtained using this function are later reduced to reflect the total number of columns.
     """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
     x = x[~np.isnan(x)] * 1.0
@@ -37,15 +39,18 @@ def fix_classes(x):
 
 def cluster_niceness(X):
     """
-    This value tells you whether clusters are "nice".
-    It is NOT a measure of the separation between clusters or anything else related to underlying data.
-    A "nice" set of clusters is simply one that is evenly distributed and has a count equal to the square root of the
-    number of elements it comprises.
+    This value tells you to what extent clusters are "nice".
 
-    If there is only one cluster OR the clusters are all singletons, the value is 0.
-    If the elements are evenly distributed AND the number of clusters equals the square root of the number of elements,
+    It is not a measure of the separation between clusters. A "nice" set of clusters is simply one that is evenly
+    distributed and has a count equal to the square root of the number of elements it comprises.
+
+    If there is only one cluster, or the clusters are all singletons, the value is 0.
+    If the elements are evenly distributed, and the number of clusters equals the square root of the number of elements,
     the value is 1.
     Otherwise, the value is on the open interval (0, 1).
+
+    This function is designed to be used in conjunction with DBSCAN as part of a grid search in order to find the best
+    value for the "eps" parameter.
 
     Inputs:
         X: A 1D array of cluster sizes.
@@ -53,9 +58,9 @@ def cluster_niceness(X):
     Outputs:
         A float on the closed interval [0, 1].
     """
-    n_el = X.sum()
-    normalise = lambda z: (n_el - z) / (n_el - 1)
-    return normalise((X ** 2).sum() / n_el) * normalise(len(X)) * (1 + 2 / math.sqrt(n_el) + 1 / n_el)
+    ttl = np.sum(X)
+    normalise = lambda z: (ttl - z) / (ttl - 1)
+    return math.sqrt(normalise(np.sum(X ** 2) / ttl) * normalise(len(X))) * (1 + 1 / math.sqrt(ttl))
 
 
 def evaluate_clusters(sample, matrix):
@@ -110,7 +115,7 @@ def get_percentiles(X, R):
 
 
 def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
-                 cat_features=None, R=(0, 100), c=0.0, knn=False,
+                 cat_features=None, adj_weight_num=True, R=(0, 100), c=0.0, knn=False,
                  use_mp=True, return_weight_num=False, **tqdm_kwargs):
     # function checks
     X = data_x
@@ -208,7 +213,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
             weight_num = process_map(get_num_weight, Z_num.T, **tqdm_kwargs)
         else:
             weight_num = [get_num_weight(Z_num[:, col]) for col in tqdm(range(num_cols))]
-    weight_num = np.array(weight_num)
+    weight_num = np.array(weight_num) ** (1 / math.log2(Z.shape[1] + 1) if adj_weight_num else 1)
 
     print(weight_cat, weight_num)
     weight_sum = weight_cat.sum() + weight_num.sum()
