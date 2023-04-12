@@ -25,31 +25,37 @@ def test_answer():
     Xd['R'] = None
     Xd['h_t'] = None
     Xd['knn'] = None
+    gm = GaussianMixture(n_components=5, random_state=0)
 
     aaa = gower.gower_matrix(X, weight_cat="uniform", weight_num="uniform")
     assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
-    Xd.iloc[:-1, -5] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
+    Xd.iloc[:-1, -5] = gm.fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X)
-    assert aaa[0][1] == pytest.approx(0.2573185046411841), aaa[0][1]
-    Xd.iloc[:-1, -4] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
+    assert aaa[0][1] == pytest.approx(0.32100430130958557), aaa[0][1]
+    Xd.iloc[:-1, -4] = gm.fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, R=(30, 70))
-    assert aaa[0][1] == pytest.approx(0.7483485762727228), aaa[0][1]
-    Xd.iloc[:-1, -3] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
+    assert aaa[0][1] == pytest.approx(0.6944147348403931), aaa[0][1]
+    Xd.iloc[:-1, -3] = gm.fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, R=(30, 70), c=3.5)
-    assert aaa[0][1] == pytest.approx(0.12582571186363858), aaa[0][1]
-    Xd.iloc[:-1, -2] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
+    assert aaa[0][1] == pytest.approx(0.15279258787631989), aaa[0][1]
+    Xd.iloc[:-1, -2] = gm.fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
     aaa = gower.gower_matrix(X, knn=True)
-    assert aaa[0][1] == pytest.approx(0.1473883030057912), aaa[0][1]
-    Xd.iloc[:-1, -1] = GaussianMixture(n_components=4, random_state=0).fit_predict(aaa[:-1, :-1])
+    assert aaa[0][1] == pytest.approx(0.17561160027980804), aaa[0][1]
+    Xd.iloc[:-1, -1] = gm.fit_predict(aaa[:-1, :-1])
     print(pd.DataFrame(aaa).describe())
 
+    i = 65
+    for col in Xd.iloc[:, 6:].columns:
+        Xd[col] = Xd[col].apply(lambda x: chr(i + x) if x is not None else None)
+        i += len(Xd[col].dropna().unique())
+
     print(Xd.iloc[:, :6])
-    print(Xd.iloc[:, 6:])
+    print(Xd.iloc[:, 6:].sort_values(by='uniform'))
