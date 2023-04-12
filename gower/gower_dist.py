@@ -17,7 +17,7 @@ def get_num_weight(x):
     It represents the "resolution" of the column as expressed in terms of entropy.
     Binary variables get the lowest weight of 1 due to no entropy.
 
-    However, the weights obtained using this function are later reduced to reflect the total number of columns.
+    The weights obtained using this function can be later reduced to reflect the total number of columns.
     """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
     x = x[~np.isnan(x)] * 1.0
@@ -69,19 +69,6 @@ def evaluate_clusters(sample, matrix):
     return sample, cluster_niceness(counts)
 
 
-def get_cat_features(X):
-    if not isinstance(X, np.ndarray):
-        is_number = np.vectorize(lambda x: not np.issubdtype(x, np.number))
-        cat_features = is_number(X.dtypes)
-    else:
-        x_n_cols = X.shape[1]
-        cat_features = np.zeros(x_n_cols, dtype=bool)
-        for col in range(x_n_cols):
-            if not np.issubdtype(type(X[0, col]), np.number):
-                cat_features[col] = True
-    return cat_features
-
-
 def optimize_clusters(df, weight_num=None, factor=0.5, n_iter=100, use_mp=True):
     df = df.copy()
     samples = [{"eps": 2 * factor * z / n_iter, "min_samples": 1} for z in range(1, n_iter + 1)]
@@ -108,6 +95,19 @@ def optimize_clusters(df, weight_num=None, factor=0.5, n_iter=100, use_mp=True):
     df.drop("count_per_cluster", axis=1, inplace=True)
 
     return df
+
+
+def get_cat_features(X):
+    if not isinstance(X, np.ndarray):
+        is_number = np.vectorize(lambda x: not np.issubdtype(x, np.number))
+        cat_features = is_number(X.dtypes)
+    else:
+        x_n_cols = X.shape[1]
+        cat_features = np.zeros(x_n_cols, dtype=bool)
+        for col in range(x_n_cols):
+            if not np.issubdtype(type(X[0, col]), np.number):
+                cat_features[col] = True
+    return cat_features
 
 
 def get_percentiles(X, R):
