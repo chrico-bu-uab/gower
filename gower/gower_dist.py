@@ -42,11 +42,11 @@ def cluster_niceness(X):
     This value tells you to what extent clusters are "nice".
 
     It is not a measure of the separation between clusters. A "nice" set of clusters is simply one that is evenly
-    distributed and has a count equal to the square root of the number of elements it comprises.
+    distributed and has a count equal to the square root of half of the number of elements it comprises.
 
     If there is only one cluster, or the clusters are all singletons, the value is 0. Useless clusters are not "nice".
-    If the elements are evenly distributed, and the number of clusters equals the square root of the number of elements,
-    the value is 1.
+    If the elements are evenly distributed, and the number of clusters equals the square root of half of the number of
+    elements, the value is 1.
     Otherwise, the value is on the open interval (0, 1).
 
     This function is designed to be used in conjunction with Grid Search and DBSCAN in order to find the best value for
@@ -59,8 +59,7 @@ def cluster_niceness(X):
         A float on the closed interval [0, 1].
     """
     ttl = np.sum(X)
-    normalise = lambda z: (ttl - z) / (ttl - 1)
-    return normalise(np.sum(X ** 2) / ttl) * normalise(len(X)) * (1 + 2 / math.sqrt(ttl) + 1 / ttl)
+    return (ttl - np.sum(np.square(X)) / ttl) * (1 - len(X) / ttl) / (ttl - 2 * math.sqrt(ttl) + 1)
 
 
 def evaluate_clusters(sample, matrix):
