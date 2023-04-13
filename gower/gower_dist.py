@@ -44,13 +44,13 @@ def cluster_niceness(X):
     It is not a measure of the separation between clusters. A "nice" set of clusters is simply one that is evenly
     distributed and has a count equal to the square root of the number of elements it comprises.
 
-    If there is only one cluster, or the clusters are all singletons, the value is 0.
+    If there is only one cluster, or the clusters are all singletons, the value is 0. Useless clusters are not "nice".
     If the elements are evenly distributed, and the number of clusters equals the square root of the number of elements,
     the value is 1.
     Otherwise, the value is on the open interval (0, 1).
 
-    This function is designed to be used in conjunction with DBSCAN as part of a grid search in order to find the best
-    value for the "eps" parameter.
+    This function is designed to be used in conjunction with Grid Search and DBSCAN in order to find the best value for
+    the "eps" parameter.
 
     Inputs:
         X: A 1D array of cluster sizes.
