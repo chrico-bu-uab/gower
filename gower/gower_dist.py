@@ -60,7 +60,7 @@ def cluster_niceness(X):
     """
     ttl = np.sum(X)
     normalise = lambda z: (ttl - z) / (ttl - 1)
-    return math.sqrt(normalise(np.sum(X ** 2) / ttl) * normalise(len(X))) * (1 + 1 / math.sqrt(ttl))
+    return normalise(np.sum(X ** 2) / ttl) * normalise(len(X)) * (1 + 2 / math.sqrt(ttl) + 1 / ttl)
 
 
 def evaluate_clusters(sample, matrix):
