@@ -83,15 +83,13 @@ def evaluate_clusters(sample, matrix):
     return sample, cluster_niceness(counts)
 
 
-def optimize_clusters(df, weight_num=None, factor=0.5, n_iter=100, use_mp=True):
+def optimize_clusters(df, factor=0.5, n_iter=100, use_mp=True, **kwargs):
     df = df.copy()
     samples = [{"eps": 2 * factor * z / n_iter, "min_samples": 1} for z in range(1, n_iter + 1)]
-
+    matrix = gower_matrix(df.to_numpy(), use_mp=use_mp, **kwargs)
     if use_mp:
-        matrix = gower_matrix(df.to_numpy(), weight_num=weight_num, chunksize=20)
-        results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=3)
+        results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=max(n_iter // 32, 1))
     else:
-        matrix = gower_matrix(df.to_numpy(), weight_num=weight_num, use_mp=False)
         results = [evaluate_clusters(sample, matrix) for sample in tqdm(samples)]
 
     best_params = max(results, key=lambda z: z[1])
