@@ -11,7 +11,7 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
-def get_num_weight(x):
+def get_num_weight(x: np.ndarray):
     """
     This value is always between 1 and len(x).
     It represents the "resolution" of the column as expressed in terms of entropy.
@@ -37,29 +37,44 @@ def fix_classes(x):
     return x
 
 
-def cluster_niceness(X):
+def cluster_niceness(X: np.ndarray[int]):
     """
     This value tells you to what extent clusters are "nice".
 
-    It is not a measure of the separation between clusters. A "nice" set of clusters is simply one that is evenly
-    distributed and has a count equal to the square root of half of the number of elements it comprises.
+    It is not a measure of the separation between clusters. "Nice" clusters are
+    simply evenly distributed and have a count equal to the square root of the
+    number of elements they comprise.
 
-    If there is only one cluster, or the clusters are all singletons, the value is 0. Useless clusters are not "nice".
-    If the elements are evenly distributed, and the number of clusters equals the square root of half of the number of
-    elements, the value is 1.
+    If there is only one cluster, or the clusters are all singletons, the value
+    is 0. Useless clusters are not "nice".
+    If the elements are evenly distributed, and the number of clusters equals
+    the square root of the number of elements, the value is 1.
     Otherwise, the value is on the open interval (0, 1).
 
-    This function is designed to be used in conjunction with Grid Search and DBSCAN in order to find the best value for
-    the "eps" parameter.
+    This function is designed to be used in conjunction with grid search and
+    DBSCAN to find the best value for the "eps" parameter.
 
     Inputs:
         X: A 1D array of cluster sizes.
 
     Outputs:
         A float on the closed interval [0, 1].
+
+    Examples:
+        >>> cluster_niceness(np.zeros(100) + 1)
+        0.0
+        >>> cluster_niceness(np.zeros(25) + 4)
+        0.8888888888888888
+        >>> cluster_niceness(np.zeros(10) + 10)
+        1.0
+        >>> cluster_niceness(np.zeros(4) + 25)
+        0.8888888888888888
+        >>> cluster_niceness(np.zeros(1) + 100)
+        0.0
     """
     ttl = np.sum(X)
-    return (ttl - np.sum(np.square(X)) / ttl) * (1 - len(X) / ttl) / (ttl - 2 * math.sqrt(ttl) + 1)
+    return (ttl - np.sum(np.square(X)) / ttl) * (1 - len(X) / ttl) / \
+        (ttl - 2 * math.sqrt(ttl) + 1)
 
 
 def evaluate_clusters(sample, matrix):
