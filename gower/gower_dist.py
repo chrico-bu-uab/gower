@@ -175,7 +175,10 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
     knn_models = []
     n_knn = int(math.sqrt(x_n_rows))
     for col in range(num_cols):
-        p0, p1 = get_percentiles(Z_num[:, col], R)
+        if c == 0:
+            p0, p1 = get_percentiles(Z_num[:, col], R)
+        else:
+            p0, p1 = np.min(Z_num[:, col]), np.max(Z_num[:, col])
 
         if np.isnan(p1):
             p1 = 0.0

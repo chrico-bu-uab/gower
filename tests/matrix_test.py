@@ -39,8 +39,8 @@ def test_answer():
     assert aaa[0][1] == pytest.approx(0.6944147348403931), aaa[0][1]
     Xd.iloc[:-1, -3] = gm.fit_predict(aaa[:-1, :-1])
 
-    aaa = gower.gower_matrix(X, R=(30, 70), c=3.5)
-    assert aaa[0][1] == pytest.approx(0.15279258787631989), aaa[0][1]
+    aaa = gower.gower_matrix(X, R=(25, 75), c=1.06)
+    assert aaa[0][1] == pytest.approx(0.1666666716337204), aaa[0][1]
     Xd.iloc[:-1, -2] = gm.fit_predict(aaa[:-1, :-1])
 
     aaa = gower.gower_matrix(X, knn=True)
