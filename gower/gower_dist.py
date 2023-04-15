@@ -14,7 +14,7 @@ from tqdm.contrib.concurrent import process_map
 
 def get_num_weight(x: pd.Series):
     """
-    This value is always between 1 and len(x).
+    This value is always between 1 and 1+log2(len(x)).
     It represents the "resolution" of the column in terms of entropy.
     Binary variables get the lowest weight of 1 due to no entropy.
     """
@@ -22,7 +22,7 @@ def get_num_weight(x: pd.Series):
     x = np.array([i for i in x if i is not None])
     x = x[~np.isnan(x)] * 1.0
     x = np.diff(np.sort(x))  # a pmf of ordered categories
-    return np.prod(x ** -x)  # entropy
+    return 1 + math.log2(np.prod(x ** -x))  # entropy
 
 
 def fix_classes(x):
@@ -39,11 +39,8 @@ def fix_classes(x):
 
 def cluster_niceness(X: np.ndarray[int]):
     """
-    This value tells you to what extent clusters are "nice".
-
-    It is not a measure of the separation between clusters. "Nice" clusters are
-    simply evenly distributed and have a count equal to the square root of the
-    number of elements they comprise.
+    This value tells you to what extent clusters are "nice". It is not a measure
+    of the separation between clusters.
 
     If there is only one cluster, or the clusters are all singletons, the value
     is 0. Useless clusters are not "nice".
