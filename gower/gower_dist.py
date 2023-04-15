@@ -37,7 +37,7 @@ def fix_classes(x):
     return x
 
 
-def cluster_niceness(X: np.ndarray[int]):
+def cluster_niceness(X: np.ndarray):
     """
     This value tells you to what extent clusters are "nice". It is not a measure
     of the separation between clusters.
