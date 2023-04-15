@@ -2,6 +2,7 @@ import math
 from functools import partial
 
 import numpy as np
+import pandas as pd
 from dython.nominal import associations
 from scipy.sparse import issparse
 from scipy.stats import norm
@@ -11,7 +12,7 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
-def get_num_weight(x: np.ndarray):
+def get_num_weight(x: pd.Series):
     """
     This value is always between 1 and len(x).
     It represents the "resolution" of the column as expressed in terms of entropy.
@@ -20,6 +21,7 @@ def get_num_weight(x: np.ndarray):
     The weights obtained using this function can be later reduced to reflect the total number of columns.
     """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
+    x = np.array([i for i in x if i is not None])
     x = x[~np.isnan(x)] * 1.0
     x = np.diff(np.sort(x))  # a pmf of ordered categories
     return np.prod(x ** -x)  # entropy
@@ -153,54 +155,31 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
     else:
         cat_features = np.array(cat_features)
 
-    if not isinstance(X, np.ndarray):
-        X = np.asarray(X)
-    if not isinstance(Y, np.ndarray):
-        Y = np.asarray(Y)
+    if not isinstance(X, pd.DataFrame):
+        X = pd.DataFrame(X)
+    if not isinstance(Y, pd.DataFrame):
+        Y = pd.DataFrame(Y)
 
-    Z = np.concatenate((X, Y))
+    Z = pd.concat((X, Y))
 
     x_index = range(0, x_n_rows)
     y_index = range(x_n_rows, x_n_rows + y_n_rows)
 
-    # numeric values
-
-    Z_num = Z[:, np.logical_not(cat_features)].astype(np.float32)
-    Z_num -= np.nanmin(Z_num, axis=0)
+    Z_num = Z.loc[:, np.logical_not(cat_features)].astype(float)
+    Z_num -= Z_num.min()
+    Z_num /= Z_num.max()
 
     num_cols = Z_num.shape[1]
-    num_ranges = np.zeros(num_cols)
-    num_max = np.zeros(num_cols)
 
+    P0, P1 = get_percentiles(Z_num, R)
     knn_models = []
-    n_knn = int(math.sqrt(x_n_rows))
-    for col in range(num_cols):
-        if c == 0:
-            p0, p1 = get_percentiles(Z_num[:, col], R)
-        else:
-            p0, p1 = np.min(Z_num[:, col]), np.max(Z_num[:, col])
+    if knn:
+        n_knn = int(math.sqrt(x_n_rows))
+        for col in range(num_cols):
+            knn_models.append(NearestNeighbors(n_neighbors=n_knn).fit(
+                Z_num.iloc[:, col].dropna().to_numpy().reshape(-1, 1)))
 
-        if np.isnan(p1):
-            p1 = 0.0
-        if np.isnan(p0):
-            p0 = 0.0
-        num_max[col] = p1
-        num_ranges[col] = abs(1 - p0 / p1) if (p1 != 0) else 0.0
-
-        Z_num[:, col] = np.where(Z_num[:, col] < p0, p0, Z_num[:, col])
-        Z_num[:, col] = np.where(Z_num[:, col] > p1, p1, Z_num[:, col])
-        col_array = Z_num[:, col]
-
-        if knn:
-            col_array = col_array[~np.isnan(col_array)]
-            knn_models.append(NearestNeighbors(n_neighbors=n_knn).fit(col_array.reshape(-1, 1)))
-
-    # This is to normalize the numeric values between 0 and 1.
-    Z_num = np.divide(Z_num, num_max, out=np.zeros_like(Z_num), where=num_max != 0)
-
-    # categorical values
-
-    Z_cat = Z[:, cat_features]
+    Z_cat = Z.loc[:, cat_features]
     cat_cols = Z_cat.shape[1]
 
     # weights
@@ -225,9 +204,9 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
             raise ValueError("Unknown weight_num: {}".format(weight_num))
     elif weight_num is None:
         if use_mp:
-            weight_num = process_map(get_num_weight, Z_num.T, **tqdm_kwargs)
+            weight_num = process_map(get_num_weight, Z_num.T.to_numpy(), **tqdm_kwargs)
         else:
-            weight_num = [get_num_weight(Z_num[:, col]) for col in tqdm(range(num_cols))]
+            weight_num = [get_num_weight(Z_num.loc[:, col]) for col in tqdm(range(num_cols))]
     weight_num = np.array(weight_num) ** (1 / math.log2(Z.shape[1] + 1) if adj_weight_num else 1)
 
     print(weight_cat, weight_num)
@@ -235,24 +214,25 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
 
     # distance matrix
 
-    out = np.zeros((x_n_rows, y_n_rows), dtype=np.float32)
+    out = np.zeros((x_n_rows, y_n_rows))
 
-    X_cat = Z_cat[x_index, ]
-    X_num = Z_num[x_index, ]
-    Y_cat = Z_cat[y_index, ]
-    Y_num = Z_num[y_index, ]
+    X_cat = Z_cat.iloc[x_index, ]
+    X_num = Z_num.iloc[x_index, ]
+    Y_cat = Z_cat.iloc[y_index, ]
+    Y_num = Z_num.iloc[y_index, ]
 
-    h_t = np.zeros(num_cols, dtype=np.float32)
+    h_t = np.zeros(num_cols)
     if c > 0:
-        p0, p1 = get_percentiles(X_num, R)
         dist = norm(0, 1)
         h_t = c * x_n_rows ** -0.2 * np.minimum(
-            np.nanstd(X_num, axis=0), (p1 - p0) / (dist.ppf(R[1] / 100) - dist.ppf(R[0] / 100)))
+            Z_num.std(),
+            (P1 - P0) / (dist.ppf(R[1] / 100) - dist.ppf(R[0] / 100)))
+        print("h_t:", h_t)
     g = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows,
-                X_cat=X_cat, X_num=X_num, Y_cat=Y_cat,
-                Y_num=Y_num, weight_cat=weight_cat, weight_num=weight_num,
-                weight_sum=weight_sum, num_ranges=num_ranges,
-                h_t=h_t, knn_models=knn_models)
+                X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
+                weight_cat=weight_cat, weight_num=weight_num,
+                weight_sum=weight_sum, IQR=P1 - P0, h_t=h_t,
+                knn_models=knn_models)
     if use_mp:
         processed = process_map(g, range(x_n_rows), **tqdm_kwargs)
     else:
@@ -270,24 +250,28 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
 
 
 def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
-              feature_weight_num, feature_weight_sum, ranges_of_numeric, h_t, knn_models):
+              feature_weight_num, feature_weight_sum, IQR, h_t, knn_models):
     # categorical columns
-    sij_cat = np.where(xi_cat == xj_cat, np.zeros_like(xi_cat), np.ones_like(xi_cat))
+    sij_cat = np.where(xi_cat == xj_cat,
+                       np.zeros_like(xi_cat),
+                       np.ones_like(xi_cat))
     sum_cat = np.multiply(feature_weight_cat, sij_cat).sum(axis=1)
 
     # numerical columns
-    abs_delta = np.absolute(xi_num - xj_num)
-    abs_delta[abs_delta < h_t] = 0.0
+    abs_delta = np.abs(xi_num - xj_num)
+    abs_delta = np.maximum(abs_delta - h_t, np.zeros_like(abs_delta))
+    xi_num = xi_num.to_numpy()
     if knn_models:
         for i, knn_model in enumerate(knn_models):
-            if np.isnan(xi_num[i]):
+            xi = xi_num[i]
+            if np.isnan(xi).any():
                 continue
-            neighbors = knn_model.kneighbors(xi_num[i].reshape(-1, 1), return_distance=False)
-            for j, x in enumerate(xj_num[:, i]):
+            neighbors = knn_model.kneighbors(xi.reshape(-1, 1),
+                                             return_distance=False)
+            for j, x in enumerate(xj_num.iloc[:, i]):
                 if x in neighbors:
-                    abs_delta[j, i] = 0.0
-    sij_num = np.divide(abs_delta, ranges_of_numeric,
-                        out=np.zeros_like(abs_delta), where=ranges_of_numeric != 0)
+                    abs_delta.iloc[j, i] = 0.0
+    sij_num = abs_delta.to_numpy() / IQR
     sij_num = np.minimum(sij_num, np.ones_like(sij_num))
 
     sum_num = np.multiply(feature_weight_num, sij_num).sum(axis=1)
@@ -298,11 +282,14 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
 
 
 def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
-                   weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models):
+                   weight_cat, weight_num, weight_sum, IQR, h_t, knn_models):
     j_start = i if x_n_rows == y_n_rows else 0
     # call the main function
-    res = gower_get(X_cat[i, :], X_num[i, :], Y_cat[j_start:y_n_rows, :], Y_num[j_start:y_n_rows, :],
-                    weight_cat, weight_num, weight_sum, num_ranges, h_t, knn_models)
+    res = gower_get(X_cat.iloc[i, :],
+                    X_num.iloc[i, :],
+                    Y_cat.iloc[j_start:y_n_rows, :],
+                    Y_num.iloc[j_start:y_n_rows, :],
+                    weight_cat, weight_num, weight_sum, IQR, h_t, knn_models)
     return res
 
 
