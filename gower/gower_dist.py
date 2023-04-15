@@ -15,10 +15,8 @@ from tqdm.contrib.concurrent import process_map
 def get_num_weight(x: pd.Series):
     """
     This value is always between 1 and len(x).
-    It represents the "resolution" of the column as expressed in terms of entropy.
+    It represents the "resolution" of the column in terms of entropy.
     Binary variables get the lowest weight of 1 due to no entropy.
-
-    The weights obtained using this function can be later reduced to reflect the total number of columns.
     """
     assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
     x = np.array([i for i in x if i is not None])
@@ -129,7 +127,7 @@ def get_percentiles(X, R):
 
 
 def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
-                 cat_features=None, adj_weight_num=True, R=(0, 100), c=0.0, knn=False,
+                 cat_features=None, R=(0, 100), c=0.0, knn=False,
                  use_mp=True, return_weight_num=False, **tqdm_kwargs):
     # function checks
     X = data_x
@@ -207,7 +205,6 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
             weight_num = process_map(get_num_weight, Z_num.T.to_numpy(), **tqdm_kwargs)
         else:
             weight_num = [get_num_weight(Z_num.loc[:, col]) for col in tqdm(range(num_cols))]
-    weight_num = np.array(weight_num) ** (1 / math.log2(Z.shape[1] + 1) if adj_weight_num else 1)
 
     print(weight_cat, weight_num)
     weight_sum = weight_cat.sum() + weight_num.sum()
