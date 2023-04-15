@@ -205,6 +205,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
             weight_num = process_map(get_num_weight, Z_num.T.to_numpy(), **tqdm_kwargs)
         else:
             weight_num = [get_num_weight(Z_num.loc[:, col]) for col in tqdm(range(num_cols))]
+    weight_num = np.array(weight_num)
 
     print(weight_cat, weight_num)
     weight_sum = weight_cat.sum() + weight_num.sum()
