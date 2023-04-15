@@ -171,8 +171,9 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
     if knn:
         n_knn = int(math.sqrt(x_n_rows))
         for col in range(num_cols):
-            knn_models.append(NearestNeighbors(n_neighbors=n_knn).fit(
-                Z_num.iloc[:, col].dropna().to_numpy().reshape(-1, 1)))
+            values = Z_num.iloc[:, col].dropna().to_numpy()
+            knn_models.append((values, NearestNeighbors(n_neighbors=n_knn).fit(
+                values.reshape(-1, 1))))
 
     Z_cat = Z.loc[:, cat_features]
     cat_cols = Z_cat.shape[1]
@@ -257,12 +258,13 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
     abs_delta = np.maximum(abs_delta - h_t, np.zeros_like(abs_delta))
     xi_num = xi_num.to_numpy()
     if knn_models:
-        for i, knn_model in enumerate(knn_models):
+        for i, (values, knn_model) in enumerate(knn_models):
             xi = xi_num[i]
             if np.isnan(xi).any():
                 continue
             neighbors = knn_model.kneighbors(xi.reshape(-1, 1),
                                              return_distance=False)
+            neighbors = values[neighbors]
             for j, x in enumerate(xj_num.iloc[:, i]):
                 if x in neighbors:
                     abs_delta.iloc[j, i] = 0.0
