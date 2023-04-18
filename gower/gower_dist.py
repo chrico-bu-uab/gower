@@ -43,8 +43,8 @@ def cluster_niceness(X: Union[np.ndarray, list]):
     This value tells you to what extent clusters are "nice". It is not a measure
     of the separation between clusters.
 
-    If there is only one cluster, or the clusters are all singletons, the value
-    is 0. Useless clusters are not "nice".
+    If the elements are all one cluster, or the clusters are all singletons, the
+    value is 0. Useless clusters are not "nice".
     If the elements are evenly distributed, and the number of clusters equals
     the number of elements per cluster, the value is 1.
     Otherwise, the value is on the open interval (0, 1).
