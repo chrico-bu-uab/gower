@@ -255,7 +255,7 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
     sum_cat = np.multiply(feature_weight_cat, sij_cat).sum(axis=1)
 
     # numerical columns
-    abs_delta = np.abs(xi_num - xj_num)
+    abs_delta = np.absolute(xi_num - xj_num)
     abs_delta = np.maximum(abs_delta - h_t, np.zeros_like(abs_delta))
     xi_num = xi_num.to_numpy()
     if knn_models:
