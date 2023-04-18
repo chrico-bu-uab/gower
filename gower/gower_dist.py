@@ -85,7 +85,7 @@ def optimize_clusters(df, factor=0.5, n_iter=100, use_mp=True, **kwargs):
     samples = [{"eps": 2 * factor * z / n_iter, "min_samples": 1} for z in range(1, n_iter + 1)]
     matrix = gower_matrix(df.to_numpy(), use_mp=use_mp, **kwargs)
     if use_mp:
-        results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=max(n_iter // 32, 1))
+        results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=math.ceil(n_iter / 32))
     else:
         results = [evaluate_clusters(sample, matrix) for sample in tqdm(samples)]
 
