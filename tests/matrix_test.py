@@ -48,8 +48,15 @@ def test_answer():
     Xd.iloc[:-1, -1] = gm.fit_predict(aaa[:-1, :-1])
 
     i = 65
-    for col in Xd.iloc[:, 6:].columns:
+    dfs = []
+    for col in ['uniform', 'auto', 'R', 'h_t', 'knn']:
         Xd[col] = Xd[col].apply(lambda x: chr(i + x) if x is not None else None)
         i += len(Xd[col].dropna().unique())
+        dfs.append(Xd[col].apply(lambda x: x == Xd[col]))
+
+    print((dfs[0] == dfs[1]).mean())
+    print((dfs[1] == dfs[2]).mean())
+    print((dfs[2] == dfs[3]).mean())
+    print((dfs[3] == dfs[4]).mean())
 
     print(Xd.sort_values(['uniform', 'auto', 'R', 'h_t', 'knn']))

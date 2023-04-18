@@ -46,7 +46,7 @@ def cluster_niceness(X: Union[np.ndarray, list]):
     If there is only one cluster, or the clusters are all singletons, the value
     is 0. Useless clusters are not "nice".
     If the elements are evenly distributed, and the number of clusters equals
-    the square root of the number of elements, the value is 1.
+    the number of elements per cluster, the value is 1.
     Otherwise, the value is on the open interval (0, 1).
 
     This function is designed to be used in conjunction with grid search and
@@ -71,7 +71,7 @@ def cluster_niceness(X: Union[np.ndarray, list]):
         0.0
     """
     ttl = np.sum(X)
-    return (ttl - np.sum(np.square(X)) / ttl) * (1 - len(X) / ttl) / \
+    return ttl * (1 - np.sum(np.square(X / ttl))) * (1 - len(X) / ttl) / \
         (ttl - 2 * math.sqrt(ttl) + 1)
 
 
