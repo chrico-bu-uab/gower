@@ -27,7 +27,7 @@ def test_answer():
     Xd['knn'] = None
     gm = GaussianMixture(n_components=3, random_state=0)
 
-    aaa = gower.gower_matrix(X, weight_cat="uniform", weight_num="uniform")
+    aaa = gower.gower_matrix(X, weight_num="uniform")
     assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
     Xd.iloc[:-1, -5] = gm.fit_predict(aaa[:-1, :-1])
 
@@ -35,11 +35,11 @@ def test_answer():
     assert aaa[0][1] == pytest.approx(0.25555986184164026), aaa[0][1]
     Xd.iloc[:-1, -4] = gm.fit_predict(aaa[:-1, :-1])
 
-    aaa = gower.gower_matrix(X, R=(25, 75))
+    aaa = gower.gower_matrix(X, lower_q=0.25)
     assert aaa[0][1] == pytest.approx(0.5819386534396299), aaa[0][1]
     Xd.iloc[:-1, -3] = gm.fit_predict(aaa[:-1, :-1])
 
-    aaa = gower.gower_matrix(X, R=(25, 75), c=1.06)
+    aaa = gower.gower_matrix(X, lower_q=0.25, c=1.06)
     assert aaa[0][1] == pytest.approx(0.2914903742933284), aaa[0][1]
     Xd.iloc[:-1, -2] = gm.fit_predict(aaa[:-1, :-1])
 

@@ -13,7 +13,7 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
-def get_num_weight(x: pd.Series):
+def get_num_weight(x):
     """
     This value is always between 1 and len(x).
     It represents the "resolution" of the column in terms of entropy.
@@ -38,7 +38,7 @@ def fix_classes(x):
     return x
 
 
-def cluster_niceness(X: Union[np.ndarray, list]):
+def cluster_niceness(C: Union[np.ndarray, list]):
     """
     This value tells you to what extent clusters are "nice". It is not a measure
     of the separation between clusters.
@@ -70,9 +70,9 @@ def cluster_niceness(X: Union[np.ndarray, list]):
         >>> cluster_niceness(np.zeros(1) + 100)
         0.0
     """
-    ttl = np.sum(X)
-    return ttl * (1 - np.sum(np.square(X / ttl))) * (1 - len(X) / ttl) / \
-        (ttl - 2 * math.sqrt(ttl) + 1)
+    n = np.sum(C)
+    return n * (1 - np.sum(np.square(C / n))) * (1 - len(C) / n) / \
+        (n - 2 * math.sqrt(n) + 1)
 
 
 def evaluate_clusters(sample, matrix):
@@ -107,25 +107,12 @@ def optimize_clusters(df, factor=0.5, n_iter=100, use_mp=True, **kwargs):
     return df
 
 
-def get_cat_features(X):
-    if not isinstance(X, np.ndarray):
-        is_number = np.vectorize(lambda x: not np.issubdtype(x, np.number))
-        cat_features = is_number(X.dtypes)
-    else:
-        x_n_cols = X.shape[1]
-        cat_features = np.zeros(x_n_cols, dtype=bool)
-        for col in range(x_n_cols):
-            if not np.issubdtype(type(X[0, col]), np.number):
-                cat_features[col] = True
-    return cat_features
+def get_percentile_range(X, q):
+    return np.nanpercentile(X, 100 - q, axis=0) - np.nanpercentile(X, q, axis=0)
 
 
-def get_percentiles(X, R):
-    return [np.nanpercentile(X, p, axis=0) for p in R]
-
-
-def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
-                 cat_features=None, R=(0, 100), c=0.0, knn=False,
+def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
+                 weight_num=None, lower_q=0.0, c=0.0, knn=False,
                  use_mp=True, return_weight_num=False, **tqdm_kwargs):
     # function checks
     X = data_x
@@ -133,7 +120,7 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
         Y = data_x
     else:
         Y = data_y
-    if not isinstance(X, np.ndarray):
+    if isinstance(X, pd.DataFrame):
         if not np.array_equal(X.columns, Y.columns):
             raise TypeError("X and Y must have same columns!")
     else:
@@ -147,7 +134,14 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
     y_n_rows, y_n_cols = Y.shape
 
     if cat_features is None:
-        cat_features = get_cat_features(X)
+        if isinstance(X, pd.DataFrame):
+            is_number = np.vectorize(lambda x: not np.issubdtype(x, np.number))
+            cat_features = is_number(X.dtypes)
+        else:
+            cat_features = np.zeros(x_n_cols, dtype=bool)
+            for col in range(x_n_cols):
+                if not np.issubdtype(type(X[0, col]), np.number):
+                    cat_features[col] = True
     else:
         cat_features = np.array(cat_features)
 
@@ -167,10 +161,10 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
 
     num_cols = Z_num.shape[1]
 
-    P0, P1 = get_percentiles(Z_num, R)
+    IQR = get_percentile_range(Z_num, 100 * lower_q)
     knn_models = []
     if knn:
-        n_knn = int(math.sqrt(x_n_rows))
+        n_knn = math.ceil(math.sqrt(x_n_rows))
         for col in range(num_cols):
             values = Z_num.iloc[:, col].dropna().to_numpy()
             knn_models.append((values, NearestNeighbors(n_neighbors=n_knn).fit(
@@ -223,12 +217,12 @@ def gower_matrix(data_x, data_y=None, weight_cat=None, weight_num=None,
         dist = norm(0, 1)
         h_t = c * x_n_rows ** -0.2 * np.minimum(
             Z_num.std(),
-            (P1 - P0) / (dist.ppf(R[1] / 100) - dist.ppf(R[0] / 100)))
+            IQR / (dist.ppf(1 - lower_q) - dist.ppf(lower_q)))
         print("h_t:", h_t)
     g = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows,
                 X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
                 weight_cat=weight_cat, weight_num=weight_num,
-                weight_sum=weight_sum, IQR=P1 - P0, h_t=h_t,
+                weight_sum=weight_sum, IQR=IQR, h_t=h_t,
                 knn_models=knn_models)
     if use_mp:
         processed = process_map(g, range(x_n_rows), **tqdm_kwargs)
