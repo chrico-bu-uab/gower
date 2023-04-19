@@ -13,6 +13,10 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
+def get_percentile_range(X, q):
+    return np.nanpercentile(X, 100 - q, axis=0) - np.nanpercentile(X, q, axis=0)
+
+
 def get_num_weight(x):
     """
     This value is always between 1 and len(x).
@@ -24,91 +28,6 @@ def get_num_weight(x):
     x = x[~np.isnan(x)] * 1.0
     x = np.diff(np.sort(x))  # a pmf of ordered categories
     return np.prod(x ** -x)  # entropy
-
-
-def fix_classes(x):
-    if isinstance(x, np.ndarray):
-        x = x.tolist()
-    x = [i for i in x if i is not None]
-    if "-1" in x:
-        x = [int(i) for i in x]
-    if -1 in x:
-        assert not any(i < -1 for i in x), x
-        x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
-    return x
-
-
-def cluster_niceness(C: Union[np.ndarray, list]):
-    """
-    This value tells you to what extent clusters are "nice". It is not a measure
-    of the separation between clusters.
-
-    If the elements are all one cluster, or the clusters are all singletons, the
-    value is 0. Useless clusters are not "nice".
-    If the elements are evenly distributed, and the number of clusters equals
-    the number of elements per cluster, the value is 1.
-    Otherwise, the value is on the open interval (0, 1).
-
-    This function is designed to be used in conjunction with grid search and
-    DBSCAN to find the best value for the "eps" parameter.
-
-    Inputs:
-        X: A 1D array of cluster sizes.
-
-    Outputs:
-        A float on the closed interval [0, 1].
-
-    Examples:
-        >>> cluster_niceness(np.zeros(100) + 1)
-        0.0
-        >>> cluster_niceness(np.zeros(25) + 4)
-        0.8888888888888888
-        >>> cluster_niceness(np.zeros(10) + 10)
-        1.0
-        >>> cluster_niceness(np.zeros(4) + 25)
-        0.8888888888888888
-        >>> cluster_niceness(np.zeros(1) + 100)
-        0.0
-    """
-    n = np.sum(C)
-    return n * (1 - np.sum(np.square(C / n))) * (1 - len(C) / n) / \
-        (n - 2 * math.sqrt(n) + 1)
-
-
-def evaluate_clusters(sample, matrix):
-    assignments = fix_classes(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
-    _, counts = np.unique(assignments, return_counts=True)
-    return sample, cluster_niceness(counts)
-
-
-def optimize_clusters(df, factor=0.5, n_iter=100, use_mp=True, **kwargs):
-    df = df.copy()
-    samples = [{"eps": 2 * factor * z / n_iter, "min_samples": 1} for z in range(1, n_iter + 1)]
-    matrix = gower_matrix(df.to_numpy(), use_mp=use_mp, **kwargs)
-    if use_mp:
-        results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=math.ceil(n_iter / 32))
-    else:
-        results = [evaluate_clusters(sample, matrix) for sample in tqdm(samples)]
-
-    best_params = max(results, key=lambda z: z[1])
-    df["cluster"] = DBSCAN(metric="precomputed", **best_params[0]).fit_predict(matrix)
-    df.cluster = df.cluster.astype(str)
-    _, counts = np.unique(df.cluster, return_counts=True)
-    class_sizes, class_counts = np.unique(counts, return_counts=True)
-
-    corr = associations(df, nom_nom_assoc="theil", figsize=(df.shape[1], df.shape[1]))["corr"]
-    print(*best_params, (corr.cluster.mean() + corr.T.cluster.mean()) / 2)
-    print(dict(zip(class_sizes, class_counts)))
-
-    df["count_per_cluster"] = df.groupby("cluster").transform("count").iloc[:, 0]
-    df.sort_values(["count_per_cluster", "cluster"], ascending=[False, True], inplace=True)
-    df.drop("count_per_cluster", axis=1, inplace=True)
-
-    return df
-
-
-def get_percentile_range(X, q):
-    return np.nanpercentile(X, 100 - q, axis=0) - np.nanpercentile(X, q, axis=0)
 
 
 def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
@@ -300,3 +219,84 @@ def gower_topn(data_x, data_y=None, weight=None, cat_features=None, n=5):
     dm = gower_matrix(data_x, data_y, weight, cat_features)
 
     return smallest_indices(np.nan_to_num(dm[0], nan=1), n)
+
+
+def fix_classes(x):
+    if isinstance(x, np.ndarray):
+        x = x.tolist()
+    x = [i for i in x if i is not None]
+    if "-1" in x:
+        x = [int(i) for i in x]
+    if -1 in x:
+        assert not any(i < -1 for i in x), x
+        x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
+    return x
+
+
+def cluster_niceness(C: Union[np.ndarray, list]):
+    """
+    This value tells you to what extent clusters are "nice". It is not a measure
+    of the separation between clusters.
+
+    If the elements are all one cluster, or the clusters are all singletons, the
+    value is 0. Useless clusters are not "nice".
+    If the elements are evenly distributed, and the number of clusters equals
+    the number of elements per cluster, the value is 1.
+    Otherwise, the value is on the open interval (0, 1).
+
+    This function is designed to be used in conjunction with grid search and
+    DBSCAN to find the best value for the "eps" parameter.
+
+    Inputs:
+        X: A 1D array of cluster sizes.
+
+    Outputs:
+        A float on the closed interval [0, 1].
+
+    Examples:
+        >>> cluster_niceness(np.zeros(100) + 1)
+        0.0
+        >>> cluster_niceness(np.zeros(25) + 4)
+        0.8888888888888888
+        >>> cluster_niceness(np.zeros(10) + 10)
+        1.0
+        >>> cluster_niceness(np.zeros(4) + 25)
+        0.8888888888888888
+        >>> cluster_niceness(np.zeros(1) + 100)
+        0.0
+    """
+    n = np.sum(C)
+    return (1 - np.sum(np.square(C / n))) * (n - len(C)) / \
+        (n - 2 * math.sqrt(n) + 1)
+
+
+def evaluate_clusters(sample, matrix):
+    assignments = fix_classes(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
+    _, counts = np.unique(assignments, return_counts=True)
+    return sample, cluster_niceness(counts)
+
+
+def optimize_clusters(df, factor=0.5, n_iter=100, use_mp=True, **kwargs):
+    df = df.copy()
+    samples = [{"eps": 2 * factor * z / n_iter, "min_samples": 1} for z in range(1, n_iter + 1)]
+    matrix = gower_matrix(df.to_numpy(), use_mp=use_mp, **kwargs)
+    if use_mp:
+        results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=math.ceil(n_iter / 32))
+    else:
+        results = [evaluate_clusters(sample, matrix) for sample in tqdm(samples)]
+
+    best_params = max(results, key=lambda z: z[1])
+    df["cluster"] = DBSCAN(metric="precomputed", **best_params[0]).fit_predict(matrix)
+    df.cluster = df.cluster.astype(str)
+    _, counts = np.unique(df.cluster, return_counts=True)
+    class_sizes, class_counts = np.unique(counts, return_counts=True)
+
+    corr = associations(df, nom_nom_assoc="theil", figsize=(df.shape[1], df.shape[1]))["corr"]
+    print(*best_params, (corr.cluster.mean() + corr.T.cluster.mean()) / 2)
+    print(dict(zip(class_sizes, class_counts)))
+
+    df["count_per_cluster"] = df.groupby("cluster").transform("count").iloc[:, 0]
+    df.sort_values(["count_per_cluster", "cluster"], ascending=[False, True], inplace=True)
+    df.drop("count_per_cluster", axis=1, inplace=True)
+
+    return df
