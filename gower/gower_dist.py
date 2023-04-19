@@ -132,7 +132,7 @@ def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
     Y_num = Z_num.iloc[y_index, ]
 
     h_t = np.zeros(num_cols)
-    if c > 0:
+    if np.any(c > 0):
         dist = norm(0, 1)
         h_t = c * x_n_rows ** -0.2 * np.minimum(
             Z_num.std(),
