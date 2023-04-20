@@ -19,7 +19,7 @@ def get_percentile_range(X, q):
 
 def get_num_weight(x):
     """
-    This value is always between 1 and len(x).
+    This value is always between 1 and sqrt(len(x)).
     It represents the "resolution" of the column in terms of entropy.
     Binary variables get the lowest weight of 1 due to no entropy.
     """
@@ -27,12 +27,12 @@ def get_num_weight(x):
     x = np.array([i for i in x if i is not None])
     x = x[~np.isnan(x)] * 1.0
     x = np.diff(np.sort(x))  # a pmf of ordered categories
-    return np.prod(x ** -x)  # entropy
+    return math.sqrt(np.prod(x ** -x))  # entropy
 
 
 def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
-                 weight_num=None, lower_q=0.0, c=0.0, knn=False,
-                 use_mp=True, return_weight_num=False, **tqdm_kwargs):
+                 weight_num=None, lower_q=0.0, c_t=0.0, knn=False, use_mp=True,
+                 **tqdm_kwargs):
     # function checks
     X = data_x
     if data_y is None:
@@ -80,11 +80,13 @@ def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
 
     num_cols = Z_num.shape[1]
 
-    IQR = get_percentile_range(Z_num, 100 * lower_q)
+    g_t = get_percentile_range(Z_num, 100 * lower_q)
     knn_models = []
-    if knn:
+    if np.any(knn):
+        if isinstance(knn, bool):
+            knn = np.ones(num_cols, dtype=bool)
         n_knn = math.ceil(math.sqrt(x_n_rows))
-        for col in range(num_cols):
+        for col in np.where(knn)[0]:
             values = Z_num.iloc[:, col].dropna().to_numpy()
             knn_models.append((values, NearestNeighbors(n_neighbors=n_knn).fit(
                 values.reshape(-1, 1))))
@@ -101,9 +103,11 @@ def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
             raise ValueError("Unknown weight_cat: {}".format(weight_cat))
     elif weight_cat is None:
         # if use_mp:
-        #     weight_cat = process_map(get_cat_weight, Z_cat.T, **tqdm_kwargs)
+        #     weight_cat = process_map(get_cat_weight, Z_cat.T.to_numpy(),
+        #                              **tqdm_kwargs)
         # else:
-        #     weight_cat = [get_cat_weight(Z_cat[:, col]) for col in tqdm(range(cat_cols))]
+        #     weight_cat = [get_cat_weight(Z_cat[:, col]) for col in
+        #                   tqdm(range(cat_cols))]
         weight_cat = np.ones(cat_cols)
     weight_cat = np.array(weight_cat)
 
@@ -114,9 +118,11 @@ def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
             raise ValueError("Unknown weight_num: {}".format(weight_num))
     elif weight_num is None:
         if use_mp:
-            weight_num = process_map(get_num_weight, Z_num.T.to_numpy(), **tqdm_kwargs)
+            weight_num = process_map(get_num_weight, Z_num.T.to_numpy(),
+                                     **tqdm_kwargs)
         else:
-            weight_num = [get_num_weight(Z_num.loc[:, col]) for col in tqdm(range(num_cols))]
+            weight_num = [get_num_weight(Z_num.loc[:, col]) for col in
+                          tqdm(range(num_cols))]
     weight_num = np.array(weight_num)
 
     print(weight_cat, weight_num)
@@ -132,21 +138,21 @@ def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
     Y_num = Z_num.iloc[y_index, ]
 
     h_t = np.zeros(num_cols)
-    if np.any(c > 0):
+    if np.any(c_t > 0):
         dist = norm(0, 1)
-        h_t = c * x_n_rows ** -0.2 * np.minimum(
+        h_t = c_t * x_n_rows ** -0.2 * np.minimum(
             Z_num.std(),
-            IQR / (dist.ppf(1 - lower_q) - dist.ppf(lower_q)))
+            g_t / (dist.ppf(1 - lower_q) - dist.ppf(lower_q)))
         print("h_t:", h_t)
-    g = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows,
+    f = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows,
                 X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
                 weight_cat=weight_cat, weight_num=weight_num,
-                weight_sum=weight_sum, IQR=IQR, h_t=h_t,
-                knn_models=knn_models)
+                weight_sum=weight_sum, g_t=g_t, h_t=h_t, knn=knn,
+                knn_models=knn_models.copy())
     if use_mp:
-        processed = process_map(g, range(x_n_rows), **tqdm_kwargs)
+        processed = process_map(f, range(x_n_rows), **tqdm_kwargs)
     else:
-        processed = list(map(g, tqdm(range(x_n_rows))))
+        processed = list(map(f, tqdm(range(x_n_rows))))
     for i, res in enumerate(processed):
         j_start = i if x_n_rows == y_n_rows else 0
         out[i, j_start:] = res
@@ -156,11 +162,12 @@ def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
     max_distance = np.nanmax(out)
     assert math.isclose(max_distance, 1) or (max_distance < 1), max_distance
 
-    return out if not return_weight_num else (out, weight_num)
+    return out
 
 
 def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
-              feature_weight_num, feature_weight_sum, IQR, h_t, knn_models):
+              feature_weight_num, feature_weight_sum, g_t, h_t, knn,
+              knn_models):
     # categorical columns
     sij_cat = np.where(xi_cat == xj_cat,
                        np.zeros_like(xi_cat),
@@ -172,7 +179,8 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
     abs_delta = np.maximum(abs_delta - h_t, np.zeros_like(abs_delta))
     xi_num = xi_num.to_numpy()
     if knn_models:
-        for i, (values, knn_model) in enumerate(knn_models):
+        for i in np.where(knn)[0]:
+            values, knn_model = knn_models.pop(0)
             xi = xi_num[i]
             if np.isnan(xi).any():
                 continue
@@ -182,7 +190,7 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
             for j, x in enumerate(xj_num.iloc[:, i]):
                 if x in neighbors:
                     abs_delta.iloc[j, i] = 0.0
-    sij_num = abs_delta.to_numpy() / IQR
+    sij_num = abs_delta.to_numpy() / g_t
     sij_num = np.minimum(sij_num, np.ones_like(sij_num))
 
     sum_num = np.multiply(feature_weight_num, sij_num).sum(axis=1)
@@ -193,14 +201,16 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
 
 
 def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
-                   weight_cat, weight_num, weight_sum, IQR, h_t, knn_models):
+                   weight_cat, weight_num, weight_sum, g_t, h_t, knn,
+                   knn_models):
     j_start = i if x_n_rows == y_n_rows else 0
     # call the main function
     res = gower_get(X_cat.iloc[i, :],
                     X_num.iloc[i, :],
                     Y_cat.iloc[j_start:y_n_rows, :],
                     Y_num.iloc[j_start:y_n_rows, :],
-                    weight_cat, weight_num, weight_sum, IQR, h_t, knn_models)
+                    weight_cat, weight_num, weight_sum, g_t, h_t, knn,
+                    knn_models)
     return res
 
 
@@ -229,7 +239,8 @@ def fix_classes(x):
         x = [int(i) for i in x]
     if -1 in x:
         assert not any(i < -1 for i in x), x
-        x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
+        x = [i for i in x if i != -1] + \
+            list(range(-1, -1 - list(x).count(-1), -1))
     return x
 
 
@@ -266,37 +277,46 @@ def cluster_niceness(C: Union[np.ndarray, list]):
         0.0
     """
     n = np.sum(C)
-    return (1 - np.sum(np.square(C / n))) * (n - len(C)) / \
-        (n - 2 * math.sqrt(n) + 1)
+    a = 1 - len(C) / n
+    b = n - 2 * math.sqrt(n) + 1  # (sqrt(n)-1)^2
+    c = n - np.sum(np.square(C)) / n
+    return np.mean([a / b * c, a * c / b])  # smooth out any rounding error
 
 
 def evaluate_clusters(sample, matrix):
-    assignments = fix_classes(DBSCAN(metric="precomputed", **sample).fit_predict(matrix))
+    assignments = fix_classes(DBSCAN(metric="precomputed",
+                                     **sample).fit_predict(matrix))
     _, counts = np.unique(assignments, return_counts=True)
     return sample, cluster_niceness(counts)
 
 
-def optimize_clusters(df, factor=0.5, n_iter=100, use_mp=True, **kwargs):
+def optimize_clusters(df, factor=0.5, n_iter=100, use_mp=True, **tqdm_kwargs):
     df = df.copy()
-    samples = [{"eps": 2 * factor * z / n_iter, "min_samples": 1} for z in range(1, n_iter + 1)]
-    matrix = gower_matrix(df.to_numpy(), use_mp=use_mp, **kwargs)
+    samples = [{"eps": 2 * factor * z / n_iter, "min_samples": 1} for z in
+               range(1, n_iter + 1)]
+    matrix = gower_matrix(df.to_numpy(), use_mp=use_mp, **tqdm_kwargs)
     if use_mp:
-        results = process_map(partial(evaluate_clusters, matrix=matrix), samples, chunksize=math.ceil(n_iter / 32))
+        results = process_map(partial(evaluate_clusters, matrix=matrix),
+                              samples, chunksize=math.ceil(n_iter / 40))
     else:
-        results = [evaluate_clusters(sample, matrix) for sample in tqdm(samples)]
+        results = [evaluate_clusters(sample, matrix) for sample in
+                   tqdm(samples)]
 
     best_params = max(results, key=lambda z: z[1])
-    df["cluster"] = DBSCAN(metric="precomputed", **best_params[0]).fit_predict(matrix)
+    df["cluster"] = DBSCAN(metric="precomputed", **best_params[0]
+                           ).fit_predict(matrix)
     df.cluster = df.cluster.astype(str)
     _, counts = np.unique(df.cluster, return_counts=True)
     class_sizes, class_counts = np.unique(counts, return_counts=True)
 
-    corr = associations(df, nom_nom_assoc="theil", figsize=(df.shape[1], df.shape[1]))["corr"]
+    corr = associations(df, nom_nom_assoc="theil",
+                        figsize=(df.shape[1], df.shape[1]))["corr"]
     print(*best_params, (corr.cluster.mean() + corr.T.cluster.mean()) / 2)
     print(dict(zip(class_sizes, class_counts)))
 
-    df["count_per_cluster"] = df.groupby("cluster").transform("count").iloc[:, 0]
-    df.sort_values(["count_per_cluster", "cluster"], ascending=[False, True], inplace=True)
-    df.drop("count_per_cluster", axis=1, inplace=True)
+    df["per_cluster"] = df.groupby("cluster").transform("count").iloc[:, 0]
+    df.sort_values(["per_cluster", "cluster"], ascending=[False, True],
+                   inplace=True)
+    df.drop("per_cluster", axis=1, inplace=True)
 
     return df

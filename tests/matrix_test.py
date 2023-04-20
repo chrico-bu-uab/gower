@@ -14,12 +14,14 @@ def test_answer():
 
     Xd = pd.DataFrame({'age': [21, 21, 19, 30, 21, 21, 19, 30, None],
                        'gender': ['M', 'M', 'N', 'M', 'F', 'F', 'F', 'F', None],
-                       'civil_status': ['MARRIED', 'SINGLE', 'SINGLE', 'SINGLE', 'MARRIED', 'SINGLE', 'WIDOW',
+                       'civil_status': ['MARRIED', 'SINGLE', 'SINGLE', 'SINGLE',
+                                        'MARRIED', 'SINGLE', 'WIDOW',
                                         'DIVORCED', None],
-                       'salary': [3000.0, 1200.0, 32000.0, 1800.0, 2900.0, 1100.0, 10000.0, 1500.0, None],
+                       'salary': [3000.0, 1200.0, 32000.0, 1800.0, 2900.0,
+                                  1100.0, 10000.0, 1500.0, None],
                        'has_children': [1, 0, 1, 1, 1, 0, 0, 1, None],
-                       'available_credit': [2200, 100, 22000, 1100, 2000, 100, 6000, 2200, None]})
-    X = np.asarray(Xd)
+                       'available_credit': [2200, 100, 22000, 1100, 2000, 100,
+                                            6000, 2200, None]})
     Xd['uniform'] = None
     Xd['auto'] = None
     Xd['R'] = None
@@ -27,24 +29,24 @@ def test_answer():
     Xd['knn'] = None
     gm = GaussianMixture(n_components=3, random_state=0)
 
-    aaa = gower.gower_matrix(X, weight_num="uniform")
+    aaa = gower.gower_matrix(Xd.iloc[:, :6], weight_num="uniform")
     assert aaa[0][1] == pytest.approx(0.3590238), aaa[0][1]
     Xd.iloc[:-1, -5] = gm.fit_predict(aaa[:-1, :-1])
 
-    aaa = gower.gower_matrix(X)
-    assert aaa[0][1] == pytest.approx(0.25555986184164026), aaa[0][1]
+    aaa = gower.gower_matrix(Xd.iloc[:, :6])
+    assert aaa[0][1] == pytest.approx(0.3058583035563735), aaa[0][1]
     Xd.iloc[:-1, -4] = gm.fit_predict(aaa[:-1, :-1])
 
-    aaa = gower.gower_matrix(X, lower_q=0.25)
-    assert aaa[0][1] == pytest.approx(0.5819386534396299), aaa[0][1]
+    aaa = gower.gower_matrix(Xd.iloc[:, :6], lower_q=0.25)
+    assert aaa[0][1] == pytest.approx(0.5766397744088249), aaa[0][1]
     Xd.iloc[:-1, -3] = gm.fit_predict(aaa[:-1, :-1])
 
-    aaa = gower.gower_matrix(X, lower_q=0.25, c=1.06)
-    assert aaa[0][1] == pytest.approx(0.2914903742933284), aaa[0][1]
+    aaa = gower.gower_matrix(Xd.iloc[:, :6], lower_q=0.25, c=1.06)
+    assert aaa[0][1] == pytest.approx(0.3193198152878781), aaa[0][1]
     Xd.iloc[:-1, -2] = gm.fit_predict(aaa[:-1, :-1])
 
-    aaa = gower.gower_matrix(X, knn=True)
-    assert aaa[0][1] == pytest.approx(0.25555986184164026), aaa[0][1]
+    aaa = gower.gower_matrix(Xd.iloc[:, :6], knn=True)
+    assert aaa[0][1] == pytest.approx(0.3058583035563735), aaa[0][1]
     Xd.iloc[:-1, -1] = gm.fit_predict(aaa[:-1, :-1])
 
     i = 65
