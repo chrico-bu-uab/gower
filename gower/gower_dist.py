@@ -215,7 +215,7 @@ def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
 
 
 def smallest_indices(ary, n):
-    """Returns the n largest indices from a numpy array."""
+    """Returns the n smallest indices from a numpy array."""
     flat = np.nan_to_num(ary.flatten(), nan=999)
     indices = np.argpartition(-flat, -n)[-n:]
     indices = indices[np.argsort(flat[indices])]
@@ -223,10 +223,10 @@ def smallest_indices(ary, n):
     return {'index': indices, 'values': values}
 
 
-def gower_topn(data_x, data_y=None, weight=None, cat_features=None, n=5):
+def gower_topn(data_x, n=5, **kwargs):
     if data_x.shape[0] >= 2:
         TypeError("Only support `data_x` of 1 row. ")
-    dm = gower_matrix(data_x, data_y, weight, cat_features)
+    dm = gower_matrix(data_x, **kwargs)
 
     return smallest_indices(np.nan_to_num(dm[0], nan=1), n)
 
@@ -244,7 +244,7 @@ def fix_classes(x):
     return x
 
 
-def cluster_niceness(C: Union[np.ndarray, list]):
+def cluster_niceness(counts: Union[np.ndarray, list]):
     """
     This value tells you to what extent clusters are "nice". It is not a measure
     of the separation between clusters.
@@ -276,11 +276,13 @@ def cluster_niceness(C: Union[np.ndarray, list]):
         >>> cluster_niceness(np.zeros(1) + 100)
         0.0
     """
-    n = np.sum(C)
-    a = 1 - len(C) / n
-    b = n - 2 * math.sqrt(n) + 1  # (sqrt(n)-1)^2
-    c = n - np.sum(np.square(C)) / n
-    return np.mean([a / b * c, a * c / b])  # smooth out any rounding error
+    n = np.sum(counts)
+    f1 = 1 - len(counts) / n
+    f2 = n - np.sum(np.square(counts)) / n
+    denom = n - 2 * math.sqrt(n) + 1  # (sqrt(n)-1)^2
+    # take mean across order of floating point ops to smooth out rounding errors
+    # this ensures that cluster_niceness([k]*k) == 1.0 for all k
+    return np.mean([f1 / denom * f2, f1 * f2 / denom])
 
 
 def evaluate_clusters(sample, matrix):
