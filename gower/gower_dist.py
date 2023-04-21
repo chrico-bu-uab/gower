@@ -286,7 +286,7 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray, np.generic]) -> float:
     denom = n_elements - 2 * math.sqrt(n_elements) + 1  # (sqrt(n)-1)^2
 
     # take mean across order of floating point ops to smooth out rounding errors
-    # this ensures that cluster_niceness([k]*k) == 1.0 for all k
+    # this ensures that cluster_niceness([k]*k) == 1.0 for k < 1e6
     niceness = (f1 / denom * f2 + f1 * f2 / denom) / 2
 
     return niceness
