@@ -244,13 +244,14 @@ def fix_classes(x):
     return x
 
 
-def cluster_niceness(counts: Union[np.ndarray, list]):
+def cluster_niceness(cluster_sizes: Union[np.ndarray, np.generic]) -> float:
     """
     This value tells you to what extent clusters are "nice". It is not a measure
-    of the separation between clusters.
+    of the separation between clusters such as the Davies-Bouldin index, but
+    rather a measure of how well the clusters are distributed.
 
     If the elements are all one cluster, or the clusters are all singletons, the
-    value is 0. Useless clusters are not "nice".
+    value is 0 as useless clusters are not "nice".
     If the elements are evenly distributed, and the number of clusters equals
     the number of elements per cluster, the value is 1.
     Otherwise, the value is on the open interval (0, 1).
@@ -276,13 +277,19 @@ def cluster_niceness(counts: Union[np.ndarray, list]):
         >>> cluster_niceness(np.zeros(1) + 100)
         0.0
     """
-    n = np.sum(counts)
-    f1 = 1 - len(counts) / n
-    f2 = n - np.sum(np.square(counts)) / n
-    denom = n - 2 * math.sqrt(n) + 1  # (sqrt(n)-1)^2
+    n_clusters = len(cluster_sizes)
+    n_elements = np.sum(cluster_sizes)
+
+    # Compute intermediate values
+    f1 = 1 - n_clusters / n_elements
+    f2 = n_elements - np.sum(np.square(cluster_sizes)) / n_elements
+    denom = n_elements - 2 * math.sqrt(n_elements) + 1  # (sqrt(n)-1)^2
+
     # take mean across order of floating point ops to smooth out rounding errors
     # this ensures that cluster_niceness([k]*k) == 1.0 for all k
-    return np.mean([f1 / denom * f2, f1 * f2 / denom])
+    niceness = (f1 / denom * f2 + f1 * f2 / denom) / 2
+
+    return niceness
 
 
 def evaluate_clusters(sample, matrix):
