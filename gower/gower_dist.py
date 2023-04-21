@@ -244,7 +244,8 @@ def fix_classes(x):
     return x
 
 
-def cluster_niceness(cluster_sizes: Union[np.ndarray, np.generic]) -> float:
+def cluster_niceness(cluster_sizes: Union[np.ndarray[Union[int, float]],
+                                          list[Union[int, float]]]) -> float:
     """
     This value tells you to what extent clusters are "nice". It is not a measure
     of the separation between clusters such as the Davies-Bouldin index, but
@@ -254,7 +255,8 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray, np.generic]) -> float:
     value is 0 as useless clusters are not "nice".
     If the elements are evenly distributed, and the number of clusters equals
     the number of elements per cluster, the value is 1.
-    Otherwise, the value is on the open interval (0, 1).
+    Otherwise, given that the clusters are nonnegative integers then the value
+    is on the open interval (0, 1).
 
     This function is designed to be used in conjunction with grid search and
     DBSCAN to find the best value for the "eps" parameter.
@@ -265,29 +267,74 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray, np.generic]) -> float:
     Outputs:
         A float on the closed interval [0, 1].
 
-    Examples:
+    Examples where the number of elements is 6:
+        >>> cluster_niceness([1, 1, 1, 1, 1, 1])
+        0.0
+        >>> cluster_niceness([6])
+        0.0
+        >>> cluster_niceness([1, 1, 1, 1, 2])
+        0.3701904728842865
+        >>> cluster_niceness([1, 5])
+        0.5288435326918381
+        >>> cluster_niceness([1, 1, 1, 3])
+        0.6346122392302056
+        >>> cluster_niceness([1, 1, 2, 2])
+        0.6874965924993893
+        >>> cluster_niceness([1, 1, 4])
+        0.7139387691339812
+        >>> cluster_niceness([2, 4])
+        0.8461496523069407
+        >>> cluster_niceness([1, 2, 3])
+        0.8725918289415325
+        >>> cluster_niceness([2, 2, 2])
+        0.9519183588453083
+        >>> cluster_niceness([3, 3])
+        0.9519183588453083
+
+    Examples where the clusters are evenly distributed and the number of
+    elements is 100:
         >>> cluster_niceness(np.zeros(100) + 1)
         0.0
+        >>> cluster_niceness(np.zeros(50) + 2)
+        0.6049382716049383
         >>> cluster_niceness(np.zeros(25) + 4)
         0.8888888888888888
+        >>> cluster_niceness(np.zeros(20) + 5)
+        0.9382716049382716
         >>> cluster_niceness(np.zeros(10) + 10)
         1.0
+        >>> cluster_niceness(np.zeros(5) + 20)
+        0.9382716049382716
         >>> cluster_niceness(np.zeros(4) + 25)
         0.8888888888888888
+        >>> cluster_niceness(np.zeros(2) + 50)
+        0.6049382716049383
         >>> cluster_niceness(np.zeros(1) + 100)
         0.0
     """
-    n_clusters = len(cluster_sizes)
-    n_elements = np.sum(cluster_sizes)
+    if not isinstance(cluster_sizes, np.ndarray):
+        cluster_sizes = np.array(cluster_sizes)
 
-    # Compute intermediate values
+    n_elements = np.sum(cluster_sizes)
+    if n_elements < 0:
+        raise ValueError("Total number of elements must be non-negative.")
+
+    n_clusters = len(cluster_sizes)
+    if n_clusters in [1, n_elements]:
+        return 0.0
+    if np.all(cluster_sizes == n_clusters):  # ==> n_elements == n_clusters^2
+        return 1.0
+
+    # Otherwise, the function is continuous on (0, 1) given that the cluster
+    # sizes are nonnegative integers.
+
+    # compute intermediate values
     f1 = 1 - n_clusters / n_elements
     f2 = n_elements - np.sum(np.square(cluster_sizes)) / n_elements
-    denom = n_elements - 2 * math.sqrt(n_elements) + 1  # (sqrt(n)-1)^2
+    de = n_elements - 2 * math.sqrt(n_elements) + 1  # (sqrt(n)-1)^2
 
     # take mean across order of floating point ops to smooth out rounding errors
-    # this ensures that cluster_niceness([k]*k) == 1.0 for k < 1e6
-    niceness = (f1 / denom * f2 + f1 * f2 / denom) / 2
+    niceness = (f1 / de * f2 + f1 * f2 / de) / 2
 
     return niceness
 
