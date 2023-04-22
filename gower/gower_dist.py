@@ -458,11 +458,11 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     Raises
     ------
     ValueError
-        If the number of elements in a given cluster is not a natural number.
+        If the number of elements in each cluster is not a natural number.
     """
     # check inputs
     if any(x < 1 or x != int(x) for x in cluster_sizes):
-        raise ValueError("The number of elements in a given cluster must be a "
+        raise ValueError("The number of elements in each cluster must be a "
                          "natural number.")
 
     # convert to numpy array
