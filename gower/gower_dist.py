@@ -284,8 +284,7 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
 
     One additional property of this function is that it is symmetric with
     respect to the number of clusters and number of elements per cluster when
-    the elements are evenly distributed and the number of elements is an
-    integer:
+    the elements are evenly distributed:
         cluster_niceness([a]*b) == cluster_niceness([b]*a)
 
     This function is designed to be used in conjunction with grid search and
@@ -303,34 +302,34 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
         >>> keys = [tuple(x) for x in C]
         >>> values = [cluster_niceness(x) for x in C]
         >>> for k, v in sorted(zip(keys, values), key=lambda x: x[1]):
-        ...     print(f"{str(k): 30}{v}")
-            (1, 1, 1, 1, 1, 1, 1, 1)      0.0
-            (8,)                          0.0
-            (1, 1, 1, 1, 1, 1, 2)         0.25238205659202445
-            (1, 7)                        0.3925943102542602
-            (1, 1, 1, 1, 1, 3)            0.46737417887411936
-            (1, 1, 1, 1, 2, 2)            0.48606914602908413
-            (1, 1, 6)                     0.6075864325363551
-            (1, 1, 1, 1, 4)               0.6169339161138375
-            (1, 1, 1, 2, 3)               0.6730188175787318
-            (1, 1, 1, 5)                  0.6730188175787318
-            (2, 6)                        0.6730188175787318
-            (1, 1, 2, 2, 2)               0.701061268311179
-            (1, 1, 2, 4)                  0.7851886205085205
-            (1, 2, 5)                     0.7945361040860028
-            (1, 1, 3, 3)                  0.82257855481845
-            (3, 5)                        0.8412735219734148
-            (1, 2, 2, 3)                  0.8599684891283795
-            (1, 3, 4)                     0.8880109398608267
-            (2, 2, 2, 2)                  0.8973584234383091
-            (4, 4)                        0.8973584234383091
-            (2, 2, 4)                     0.9347483577482386
-            (2, 3, 3)                     0.9814857756356505
+        ...     print(f"{str(k):30}{v}")
+        (1, 1, 1, 1, 1, 1, 1, 1)      0.0
+        (8,)                          0.0
+        (1, 1, 1, 1, 1, 1, 2)         0.25238205659202445
+        (1, 7)                        0.3925943102542603
+        (1, 1, 1, 1, 1, 3)            0.46737417887411936
+        (1, 1, 1, 1, 2, 2)            0.48606914602908413
+        (1, 1, 6)                     0.6075864325363551
+        (1, 1, 1, 1, 4)               0.6169339161138375
+        (1, 1, 1, 2, 3)               0.6730188175787318
+        (1, 1, 1, 5)                  0.6730188175787318
+        (2, 6)                        0.6730188175787318
+        (1, 1, 2, 2, 2)               0.701061268311179
+        (1, 1, 2, 4)                  0.7851886205085205
+        (1, 2, 5)                     0.7945361040860028
+        (1, 1, 3, 3)                  0.82257855481845
+        (3, 5)                        0.8412735219734149
+        (1, 2, 2, 3)                  0.8599684891283795
+        (1, 3, 4)                     0.8880109398608267
+        (2, 2, 2, 2)                  0.8973584234383092
+        (4, 4)                        0.8973584234383092
+        (2, 2, 4)                     0.9347483577482386
+        (2, 3, 3)                     0.9814857756356505
     Note that no combination of 8 elements returns 1.0 because the number of
     clusters cannot be equal to the number of elements per cluster.
     """
     # check inputs
-    if any([x < 0 or float(x) != int(x) for x in cluster_sizes]):
+    if any(x < 0 or float(x) != int(x) for x in cluster_sizes):
         raise ValueError("The number of elements in a given cluster must be a "
                          "nonnegative integer.")
 
@@ -338,9 +337,9 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     if not isinstance(cluster_sizes, np.ndarray):
         cluster_sizes = np.array(cluster_sizes)
 
-    # compute number of elements and clusters
-    n_elements = np.sum(cluster_sizes)
+    # compute number of clusters and elements
     n_clusters = len(cluster_sizes)
+    n_elements = cluster_sizes.sum()
 
     # conditions for return value in {0, 1}
     if n_clusters in [1, n_elements]:
@@ -348,26 +347,22 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     if np.all(cluster_sizes == n_clusters):  # ==> n_elements == n_clusters^2
         return 1.0
 
-    # Otherwise, the function is on (0, 1) given that the cluster sizes are
-    # nonnegative integers.
-
-    # compute denominator
-    de = n_elements - 2 * math.sqrt(n_elements) + 1  # (sqrt(n)-1)^2
-
-    # ensure cluster_niceness([a]*b) == cluster_niceness([b]*a)
+    # compute average number of elements per cluster
     mu = n_elements / n_clusters
-    if np.all(cluster_sizes == mu):
-        return (n_clusters - 1) * (mu - 1) / de
 
     # compute factors
-    f1 = 1 - n_clusters / n_elements
-    f2 = n_elements - np.sum(np.square(cluster_sizes)) / n_elements
+    if np.all(cluster_sizes == mu):
+        # ensure cluster_niceness([a]*b) == cluster_niceness([b]*a)
+        f1 = n_clusters - 1
+        f2 = mu - 1
+    else:
+        f1 = n_elements - np.square(cluster_sizes).sum() / n_elements
+        f2 = 1 - 1 / mu
 
-    # take mean across order of floating point ops to smooth out rounding errors
-    # assert f1 / de * f2 == f1 * f2 / de  # this may error due to rounding
-    niceness = (f1 / de * f2 + f1 * f2 / de) / 2
-
-    return niceness
+    # compute (sqrt(n)-1)^2
+    denominator = n_elements - 2 * math.sqrt(n_elements) + 1
+    
+    return (f1 / denominator * f2 + f2 / denominator * f1) / 2
 
 
 def evaluate_clusters(sample, matrix):
