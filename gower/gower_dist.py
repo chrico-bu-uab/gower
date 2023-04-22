@@ -300,8 +300,8 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     This function is designed to be used in conjunction with grid search and
     DBSCAN to find the best value for the "eps" parameter.
 
-    Example: Clusterings of 1-10 elements
-    -------------------------------------
+    Example 1: Clusterings of 1-10 elements
+    ---------------------------------------
     >>> from gower.gower_dist import all_possible_clusters, cluster_niceness
     >>> C = [c for i in range(1, 11) for c in all_possible_clusters(i)]
     >>> pairs = [(str(c), cluster_niceness(c)) for c in C]
@@ -445,6 +445,14 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     [3, 3, 4]                             0.9881413034562448
     [2, 2]                                1.0
     [3, 3, 3]                             1.0
+
+    Example 2: Interesting equivalence
+    ---------------------
+    >>> cluster_niceness([4] * 25) == cluster_niceness([25] * 4) == \
+    ... 8 / 9 == cluster_niceness([1, 4, 4]) == cluster_niceness([2, 2, 5])
+    True
+
+    Note that 1^2+4^2+4^2 == 2^2+2^2+5^2 == 33.
 
     Parameters
     ----------
