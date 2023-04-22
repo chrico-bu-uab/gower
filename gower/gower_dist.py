@@ -285,6 +285,10 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     the number of elements per cluster, the value is 1.
     Otherwise, the value is on the open interval (0, 1).
 
+    Note that only a square number of elements permits a return value of 1.0,
+    but any number of elements could return a value of 0.0 (besides 1, which
+    returns NaN).
+
     One additional property of this function is that it is symmetric with
     respect to the number of clusters and number of elements per cluster when
     the elements are evenly distributed:
@@ -293,33 +297,40 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     This function is designed to be used in conjunction with grid search and
     DBSCAN to find the best value for the "eps" parameter.
 
-    Inputs:
-        X: A 1D array of cluster sizes.
+    Example:
+    --------
+    Clusterings of six elements:
+    >>> from gower.gower_dist import all_possible_clusters, cluster_niceness
+    >>> C = all_possible_clusters(n_elements=6)
+    >>> pairs = [(str(x), cluster_niceness(x)) for x in C]
+    >>> for k, v in sorted(pairs, key=lambda x: x[1]):
+    ...     print(f"{k:20}{v}")
+    [1, 1, 1, 1, 1, 1]  0.0
+    [6]                 0.0
+    [1, 1, 1, 1, 2]     0.3701904728842866
+    [1, 5]              0.5288435326918379
+    [1, 1, 1, 3]        0.6346122392302055
+    [1, 1, 2, 2]        0.6874965924993893
+    [1, 1, 4]           0.7139387691339812
+    [2, 4]              0.8461496523069406
+    [1, 2, 3]           0.8725918289415325
+    [2, 2, 2]           0.9519183588453083
+    [3, 3]              0.9519183588453083
 
-    Outputs:
+    Parameters
+    ----------
+    cluster_sizes : Union[np.ndarray[int], list[int]]
+        A 1D array of cluster sizes.
+
+    Returns
+    -------
+    float
         A float on the closed interval [0, 1].
 
-    Examples of clusterings of six elements:
-        >>> from gower.gower_dist import all_possible_clusters, cluster_niceness
-        >>> C = all_possible_clusters(n_elements=6)
-        >>> pairs = [(str(x), cluster_niceness(x)) for x in C]
-        >>> for k, v in sorted(pairs, key=lambda x: x[1]):
-        >>>     print(f"{k:20}{v}")
-        [1, 1, 1, 1, 1, 1]  0.0
-        [6]                 0.0
-        [1, 1, 1, 1, 2]     0.3701904728842866
-        [1, 5]              0.5288435326918379
-        [1, 1, 1, 3]        0.6346122392302055
-        [1, 1, 2, 2]        0.6874965924993893
-        [1, 1, 4]           0.7139387691339812
-        [2, 4]              0.8461496523069406
-        [1, 2, 3]           0.8725918289415325
-        [2, 2, 2]           0.9519183588453083
-        [3, 3]              0.9519183588453083
-
-    Note that only a square number of elements permits a return value of 1.0,
-    but any number of elements could return a value of 0.0 (besides 1, which
-    returns NaN).
+    Raises
+    ------
+    ValueError
+        If the number of elements in a given cluster is not a natural number.
     """
     # check inputs
     if any(x < 1 or x != int(x) for x in cluster_sizes):
