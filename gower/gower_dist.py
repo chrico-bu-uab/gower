@@ -247,6 +247,7 @@ def fix_classes(x):
 def all_possible_clusters(n_elements, memo=None):
     """
     *** This function was (mostly) written by GitHub Copilot and ChatGPT. ***
+    *** See also so 24582741/5295786 ***
 
     This function returns a list of all possible clusterings given a number of
     elements to cluster. The clusterings are returned as a list of lists of
@@ -293,14 +294,14 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     One additional property of this function is that it is symmetric with
     respect to the number of clusters and the number of elements per cluster
     when the elements are evenly distributed:
-        cluster_niceness([a]*b) == cluster_niceness([b]*a)
+
+    cluster_niceness([a]*b) == cluster_niceness([b]*a)
 
     This function is designed to be used in conjunction with grid search and
     DBSCAN to find the best value for the "eps" parameter.
 
-    Example:
-    --------
-    Clusterings of 1-10 elements:
+    Example: Clusterings of 1-10 elements
+    -------------------------------------
     >>> from gower.gower_dist import all_possible_clusters, cluster_niceness
     >>> C = [c for i in range(1, 11) for c in all_possible_clusters(i)]
     >>> pairs = [(str(c), cluster_niceness(c)) for c in C]
@@ -458,12 +459,11 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     Raises
     ------
     ValueError
-        If the number of elements in each cluster is not a natural number.
+        If the number of elements in any cluster is not a natural number.
     """
     # check inputs
     if any(x < 1 or x != int(x) for x in cluster_sizes):
-        raise ValueError("The number of elements in each cluster must be a "
-                         "natural number.")
+        raise ValueError("Every count must be a natural number.")
 
     # convert to numpy array
     if not isinstance(cluster_sizes, np.ndarray):
