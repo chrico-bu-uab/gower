@@ -244,9 +244,9 @@ def fix_classes(x):
     return x
 
 
-def all_possible_clusters(n_elements):
+def all_possible_clusters(n_elements, memo=None):
     """
-    *** This function was (mostly) written by GitHub Copilot. ***
+    *** This function was (mostly) written by GitHub Copilot and ChatGPT. ***
 
     This function returns a list of all possible clusterings given a number of
     elements to cluster. The clusterings are returned as a list of lists of
@@ -259,14 +259,18 @@ def all_possible_clusters(n_elements):
     """
     if n_elements == 1:
         return [[1]]
-    else:
-        out = []
-        for i in range(1, n_elements):
-            for j in all_possible_clusters(n_elements - i):
-                out.append(sorted([i] + j))
-        out.append([n_elements])
-        out = [c for i, c in enumerate(out) if c not in out[:i]]
-        return out
+    if memo is None:
+        memo = {}
+    if n_elements in memo:
+        return memo[n_elements]
+    out = []
+    for i in range(1, n_elements):
+        for j in all_possible_clusters(n_elements - i, memo):
+            out.append(sorted([i] + j))
+    out.append([n_elements])
+    out = [c for i, c in enumerate(out) if c not in out[:i]]
+    memo[n_elements] = out
+    return out
 
 
 def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
@@ -295,24 +299,32 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     Outputs:
         A float on the closed interval [0, 1].
 
-    Examples with 5 elements:
+    Examples of clusterings of six elements:
         >>> from gower.gower_dist import all_possible_clusters, cluster_niceness
-        >>> for x in all_possible_clusters(n_elements=5):
-        ...     print(f"{str(x):20}{cluster_niceness(x)}")
-        [1, 1, 1, 1, 1]     0.0
-        [1, 1, 1, 2]        0.471246117974981
-        [1, 1, 3]           0.7330495168499708
-        [1, 2, 2]           0.8377708763999664
-        [1, 4]              0.6283281572999746
-        [2, 3]              0.9424922359499623
-        [5]                 0.0
-    Note that no clustering of 5 elements returns 1.0 because the number of
-    clusters cannot be equal to the number of elements per cluster.
+        >>> C = all_possible_clusters(n_elements=6)
+        >>> pairs = [(str(x), cluster_niceness(x)) for x in C]
+        >>> for k, v in sorted(pairs, key=lambda x: x[1]):
+        >>>     print(f"{k:20}{v}")
+        [1, 1, 1, 1, 1, 1]  0.0
+        [6]                 0.0
+        [1, 1, 1, 1, 2]     0.3701904728842866
+        [1, 5]              0.5288435326918379
+        [1, 1, 1, 3]        0.6346122392302055
+        [1, 1, 2, 2]        0.6874965924993893
+        [1, 1, 4]           0.7139387691339812
+        [2, 4]              0.8461496523069406
+        [1, 2, 3]           0.8725918289415325
+        [2, 2, 2]           0.9519183588453083
+        [3, 3]              0.9519183588453083
+
+    Note that only a square number of elements permits a return value of 1.0,
+    but any number of elements could return a value of 0.0 (besides 1, which
+    returns NaN).
     """
     # check inputs
-    if any(x < 0 or float(x) != int(x) for x in cluster_sizes):
+    if any(x < 1 or x != int(x) for x in cluster_sizes):
         raise ValueError("The number of elements in a given cluster must be a "
-                         "nonnegative integer.")
+                         "natural number.")
 
     # convert to numpy array
     if not isinstance(cluster_sizes, np.ndarray):
@@ -321,31 +333,17 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     # compute number of clusters and elements
     n_clusters = len(cluster_sizes)
     n_elements = cluster_sizes.sum()
+    n_elements2 = n_elements ** 2
 
-    # conditions for return value in {0, 1}
-    if n_clusters in [1, n_elements]:
-        return 0.0
-    if np.all(cluster_sizes == n_clusters):  # ==> n_elements == n_clusters^2
-        return 1.0
+    # compute factors
+    f1 = n_elements2 - np.square(cluster_sizes).sum()
+    f2 = n_elements - n_clusters
+    numer = f1 * f2 / n_elements2
 
-    # compute average number of elements per cluster
-    mu = n_elements / n_clusters
+    # compute (sqrt(n_elements)-1)^2
+    denom = n_elements - 2 * math.sqrt(n_elements) + 1
 
-    # compute (sqrt(n)-1)^2
-    de = n_elements - 2 * math.sqrt(n_elements) + 1
-
-    # final computation
-    if np.all(cluster_sizes == mu):
-        # ensure cluster_niceness([a]*b) == cluster_niceness([b]*a)
-        f1 = n_clusters - 1
-        f2 = mu - 1
-        niceness = (f1 / de * f2 + f2 / de * f1) / 2
-    else:
-        f1 = 1 - np.square(cluster_sizes / n_elements).sum()
-        f2 = 1 - 1 / mu
-        niceness = n_elements * (f1 * f2 / de + f1 / de * f2 + f2 / de * f1) / 3
-
-    return niceness
+    return numer / denom
 
 
 def evaluate_clusters(sample, matrix):
