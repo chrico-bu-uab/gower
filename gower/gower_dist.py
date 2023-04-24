@@ -244,7 +244,7 @@ def fix_classes(x):
     return x
 
 
-def all_possible_clusters(n_elements, memo=None):
+def all_possible_clusters(n, memo=None):
     """
     *** This function was (mostly) written by GitHub Copilot and ChatGPT. ***
     *** See also so 24582741/5295786 ***
@@ -256,25 +256,26 @@ def all_possible_clusters(n_elements, memo=None):
     For example, if there are 3 elements, then the possible clusterings are:
     [[1, 1, 1], [1, 2], [3]]
 
-    This function is not recommended for n_elements > 20.
+    This function is not recommended for n > 20.
     """
-    if n_elements == 1:
+    if n == 1:
         return [[1]]
     if memo is None:
         memo = {}
-    if n_elements in memo:
-        return memo[n_elements]
+    if n in memo:
+        return memo[n]
     out = []
-    for i in range(1, n_elements):
-        for j in all_possible_clusters(n_elements - i, memo):
+    for i in range(1, n):
+        for j in all_possible_clusters(n - i, memo):
             out.append(sorted([i] + j))
-    out.append([n_elements])
+    out.append([n])
     out = [c for i, c in enumerate(out) if c not in out[:i]]
-    memo[n_elements] = out
+    memo[n] = out
     return out
 
 
-def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
+def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]],
+                     return_numerator_only=False, normalize=False) -> float:
     """
     This value tells you to what extent clusters are "nice". It is not a measure
     of the separation between clusters such as the Davies-Bouldin index, but
@@ -300,164 +301,64 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     This function is designed to be used in conjunction with grid search and
     DBSCAN to find the best value for the "eps" parameter.
 
-    Example 1: Clusterings of 1-10 elements
+    Example 1: Clusterings of 1-6 elements
     ---------------------------------------
-    >>> from gower.gower_dist import all_possible_clusters, cluster_niceness
-    >>> C = [c for i in range(1, 11) for c in all_possible_clusters(i)]
-    >>> pairs = [(str(c), cluster_niceness(c)) for c in C]
-    >>> for k, v in sorted(pairs, key=lambda p: p[1]):
-    ...     print(f"{k:38}{v}")
-    [1]                                   nan
-    [1, 1]                                0.0
-    [2]                                   0.0
-    [1, 1, 1]                             0.0
-    [3]                                   0.0
-    [1, 1, 1, 1]                          0.0
-    [4]                                   0.0
-    [1, 1, 1, 1, 1]                       0.0
-    [5]                                   0.0
-    [1, 1, 1, 1, 1, 1]                    0.0
-    [6]                                   0.0
-    [1, 1, 1, 1, 1, 1, 1]                 0.0
-    [7]                                   0.0
-    [1, 1, 1, 1, 1, 1, 1, 1]              0.0
-    [8]                                   0.0
-    [1, 1, 1, 1, 1, 1, 1, 1, 1]           0.0
-    [9]                                   0.0
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]        0.0
-    [10]                                  0.0
-    [1, 1, 1, 1, 1, 1, 1, 1, 2]           0.18821739113452282
-    [1, 1, 1, 1, 1, 1, 1, 2]              0.21604938271604937
-    [1, 1, 1, 1, 1, 1, 2]                 0.25238205659202445
-    [1, 1, 1, 1, 1, 2]                    0.30139461728184086
-    [1, 9]                                0.3079920945837646
-    [1, 8]                                0.345679012345679
-    [1, 1, 1, 1, 1, 1, 1, 3]              0.3593241103477254
-    [1, 1, 1, 1, 1, 1, 2, 2]              0.36787944630838554
-    [1, 1, 1, 1, 2]                       0.3701904728842866
-    [1, 7]                                0.3925943102542602
-    [1, 1, 1, 1, 1, 1, 3]                 0.4074074074074074
-    [1, 1, 1, 1, 1, 2, 2]                 0.41975308641975306
-    [1, 6]                                0.4520919259227613
-    [1, 1, 1, 1, 1, 3]                    0.4673741788741193
-    [1, 1, 1, 2]                          0.4712461179749811
-    [1, 1, 1, 1, 2, 2]                    0.4860691460290841
-    [1, 1, 1, 1, 1, 1, 4]                 0.5004871536986175
-    [1, 1, 8]                             0.5090424896592776
-    [1, 1, 1, 1, 1, 2, 3]                 0.5261531615805979
-    [1, 5]                                0.5288435326918379
-    [1, 1, 1, 1, 2, 2, 2]                 0.5389861655215881
-    [1, 1, 1, 1, 3]                       0.5425103111073136
-    [2, 8]                                0.5475415014822482
-    [1, 1, 1, 1, 1, 4]                    0.5555555555555556
-    [1, 1, 7]                             0.5555555555555556
-    [1, 1, 1, 2, 2]                       0.5726497728354977
-    [1, 1, 1, 1, 2, 3]                    0.5925925925925926
-    [1, 1, 1, 1, 1, 5]                    0.598873517246209
-    [2, 7]                                0.6049382716049383
-    [1, 1, 6]                             0.6075864325363551
-    [1, 1, 1, 2, 2, 2]                    0.6111111111111112
-    [1, 1, 1, 7]                          0.6159841891675292
-    [1, 1, 1, 1, 4]                       0.6169339161138375
-    [1, 1, 2]                             0.625
-    [1, 4]                                0.6283281572999748
-    [1, 1, 1, 3]                          0.6346122392302055
-    [1, 1, 1, 1, 6]                       0.6416501970495097
-    [1, 1, 1, 1, 5]                       0.6419753086419753
-    [1, 1, 1, 6]                          0.6481481481481481
-    [1, 1, 1, 1, 2, 4]                    0.6502055330101698
-    [1, 1, 5]                             0.6630681580200499
-    [1, 1, 1, 1, 3, 3]                    0.66731620493149
-    [1, 1, 1, 2, 3]                       0.6730188175787318
-    [1, 1, 1, 5]                          0.6730188175787318
-    [2, 6]                                0.6730188175787318
-    [1, 1, 1, 4]                          0.678137888884142
-    [1, 1, 1, 2, 2, 3]                    0.6844268768528103
-    [1, 1, 2, 2]                          0.6874965924993893
-    [1, 2, 7]                             0.6887045448331404
-    [1, 1, 2, 2, 2]                       0.701061268311179
-    [1, 1, 2, 2, 2, 2]                    0.7015375487741304
-    [1, 1, 4]                             0.7139387691339812
-    [1, 1, 1, 2, 4]                       0.7160493827160493
-    [3, 7]                                0.7186482206954508
-    [1, 1, 1, 2, 5]                       0.7272035566561109
-    [1, 1, 3]                             0.7330495168499708
-    [1, 1, 1, 3, 3]                       0.7407407407407407
-    [1, 2, 6]                             0.7407407407407407
-    [1, 1, 2, 6]                          0.7443142285774311
-    [1, 3]                                0.75
-    [2, 5]                                0.7534865432046022
-    [1, 1, 2, 2, 3]                       0.7654320987654321
-    [1, 1, 2, 3]                          0.7685562740686942
-    [1, 1, 1, 3, 4]                       0.7699802364594116
-    [1, 1, 2, 5]                          0.7716049382716049
-    [3, 6]                                0.7777777777777778
-    [1, 1, 2, 4]                          0.7851886205085205
-    [1, 2, 2, 2, 2]                       0.7901234567901234
-    [1, 1, 2, 2, 4]                       0.791368576361062
-    [1, 2, 5]                             0.7945361040860028
-    [1, 3, 6]                             0.808479248282382
-    [1, 1, 2, 3, 3]                       0.8127569162627122
-    [1, 2, 2, 2]                          0.8137654666609703
-    [1, 1, 3, 5]                          0.8213122522233723
-    [4, 6]                                0.8213122522233723
-    [1, 1, 3, 3]                          0.82257855481845
-    [1, 2]                                0.8293446239041946
-    [1, 1, 3, 4]                          0.8333333333333334
-    [1, 2, 2, 2, 3]                       0.8341452561643625
-    [1, 2, 2]                             0.8377708763999665
-    [2, 2, 6]                             0.8384229241446925
-    [3, 5]                                0.8412735219734148
-    [1, 2, 4]                             0.8439049283891544
-    [2, 4]                                0.8461496523069406
-    [1, 1, 4, 4]                          0.8469782601053527
-    [1, 2, 2, 5]                          0.8469782601053527
-    [1, 3, 5]                             0.8518518518518519
-    [2, 2, 2, 2, 2]                       0.8555335960660129
-    [5, 5]                                0.8555335960660129
-    [1, 2, 2, 3]                          0.8599684891283795
-    [1, 2, 2, 4]                          0.8641975308641975
-    [4, 5]                                0.8641975308641975
-    [1, 4, 5]                             0.8683666000070029
-    [1, 2, 3]                             0.8725918289415325
-    [1, 3, 4]                             0.8880109398608267
-    [1, 4, 4]                             0.8888888888888888
-    [2, 2, 5]                             0.8888888888888888
-    [1, 2, 3, 3]                          0.8950617283950617
-    [2, 2, 2, 2]                          0.8973584234383091
-    [4, 4]                                0.8973584234383091
-    [1, 2, 3, 4]                          0.8983102758693136
-    [1, 3, 3]                             0.9041838518455226
-    [3, 4]                                0.9041838518455226
-    [1, 3, 3, 3]                          0.9239762837512939
-    [2, 2, 2, 4]                          0.9239762837512939
-    [2, 2, 2, 3]                          0.9259259259259259
-    [2, 3, 5]                             0.928253951731624
-    [2, 2, 4]                             0.9347483577482386
-    [2, 3]                                0.9424922359499622
-    [2, 2, 3, 3]                          0.9496422916332743
-    [2, 2, 2]                             0.9519183588453083
-    [3, 3]                                0.9519183588453083
-    [2, 4, 4]                             0.9581976275939345
-    [2, 3, 4]                             0.9629629629629629
-    [2, 2, 3]                             0.9644627753018907
-    [2, 3, 3]                             0.9814857756356505
-    [3, 3, 4]                             0.9881413034562448
-    [2, 2]                                1.0
-    [3, 3, 3]                             1.0
+    >>> from gower.gower_dist import *
+    >>> C = [x for i in range(1, 7) for x in all_possible_clusters(i)]
+    >>> pairs = [(str(tuple(x)), cluster_niceness(x),
+    ...          cluster_niceness(x, normalize=True)) for x in C]
+    >>> for k, v1, v2 in sorted(pairs, key=lambda x: x[1]):
+    ...     print(f"{k:25}{v1:25}{v2:25}")
+    (1,)                                           nan                      nan
+    (1, 1)                                         0.0                      nan
+    (2,)                                           0.0                      nan
+    (1, 1, 1)                                      0.0                      0.0
+    (3,)                                           0.0                      0.0
+    (1, 1, 1, 1)                                   0.0                      0.0
+    (4,)                                           0.0                      0.0
+    (1, 1, 1, 1, 1)                                0.0                      0.0
+    (5,)                                           0.0                      0.0
+    (1, 1, 1, 1, 1, 1)                             0.0                      0.0
+    (6,)                                           0.0                      0.0
+    (1, 1, 1, 1, 2)                 0.3701904728842866       0.3888888888888889
+    (1, 1, 1, 2)                    0.4712461179749811                      0.5
+    (1, 5)                          0.5288435326918379       0.5555555555555556
+    (1, 1, 2)                                    0.625                    0.625
+    (1, 4)                          0.6283281572999748       0.6666666666666666
+    (1, 1, 1, 3)                    0.6346122392302055       0.6666666666666666
+    (1, 1, 2, 2)                    0.6874965924993893       0.7222222222222222
+    (1, 1, 4)                       0.7139387691339812                     0.75
+    (1, 1, 3)                       0.7330495168499708       0.7777777777777778
+    (1, 3)                                        0.75                     0.75
+    (1, 2)                          0.8293446239041946                      1.0
+    (1, 2, 2)                       0.8377708763999665       0.8888888888888888
+    (2, 4)                          0.8461496523069406       0.8888888888888888
+    (1, 2, 3)                       0.8725918289415325       0.9166666666666666
+    (2, 3)                          0.9424922359499622                      1.0
+    (2, 2, 2)                       0.9519183588453083                      1.0
+    (3, 3)                          0.9519183588453083                      1.0
+    (2, 2)                                         1.0                      1.0
 
     Example 2: Interesting equivalence
-    ---------------------
+    ----------------------------------
     >>> cluster_niceness([4] * 25) == cluster_niceness([25] * 4) == \
-    ... 8 / 9 == cluster_niceness([1, 4, 4]) == cluster_niceness([2, 2, 5])
+        8 / 9 == cluster_niceness([1, 4, 4]) == cluster_niceness([2, 2, 5])
     True
 
     Note that 1^2+4^2+4^2 == 2^2+2^2+5^2 == 33.
+
+    Equivalent results are obtained when normalization is turned on, as the
+    number of elements is square in each instance.
 
     Parameters
     ----------
     cluster_sizes : Union[np.ndarray[int], list[int]]
         A 1D array of cluster sizes.
+    return_numerator_only : bool, optional
+        Whether to ignore the denominator in the computation.
+    normalize : bool, optional
+        Whether to normalize the result by the maximum possible value. This
+        parameter is ignored if `return_numerator_only` is True.
 
     Returns
     -------
@@ -471,26 +372,42 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     """
     # check inputs
     if any(x < 1 or x != int(x) for x in cluster_sizes):
-        raise ValueError("Every count must be a natural number.")
+        raise ValueError("Every count must be a positive integer.")
 
     # convert to numpy array
     if not isinstance(cluster_sizes, np.ndarray):
-        cluster_sizes = np.array(cluster_sizes)
+        cluster_sizes = np.array(cluster_sizes, dtype=int)
 
     # compute number of clusters and elements
-    n_clusters = len(cluster_sizes)
-    n_elements = cluster_sizes.sum()
-    n_elements2 = n_elements ** 2
+    k = len(cluster_sizes)
+    n = cluster_sizes.sum()
+    n2 = n ** 2
 
     # compute factors
-    f1 = n_elements2 - np.square(cluster_sizes).sum()
-    f2 = n_elements - n_clusters
-    numer = f1 * f2 / n_elements2
+    fa = n2 - np.square(cluster_sizes).sum()
+    fb = n - k
+    numer = fa * fb
 
-    # compute (sqrt(n_elements)-1)^2
-    denom = n_elements - 2 * math.sqrt(n_elements) + 1
+    if return_numerator_only:
+        return numer
 
-    return numer / denom
+    n1_2 = math.sqrt(n)
+    flo = int(n1_2)
+
+    if n1_2 == flo or not normalize:  # n is square <==> nicest possible == 1
+        denom = n - 2 * n1_2 + 1  # compute (sqrt(n)-1)^2
+        return numer / n2 / denom
+
+    # get the nicest possible clustering with which to normalize
+    ce = flo + 1
+    da = ce ** 2 - n
+    db = n - flo ** 2
+    if da < db:
+        nicest_possible = [flo] * da + [ce] * (ce - da)
+    else:
+        nicest_possible = [ce] * db + [flo] * (flo - db)
+
+    return numer / cluster_niceness(nicest_possible, return_numerator_only=True)
 
 
 def evaluate_clusters(sample, matrix):
