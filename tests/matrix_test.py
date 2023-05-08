@@ -41,7 +41,7 @@ def test_answer():
     assert aaa[0][1] == pytest.approx(0.5766397744088249), aaa[0][1]
     Xd.iloc[:-1, -3] = gm.fit_predict(aaa[:-1, :-1])
 
-    aaa = gower.gower_matrix(Xd.iloc[:, :6], lower_q=0.25, c=1.06)
+    aaa = gower.gower_matrix(Xd.iloc[:, :6], lower_q=0.25, c_t=1.06)
     assert aaa[0][1] == pytest.approx(0.3193198152878781), aaa[0][1]
     Xd.iloc[:-1, -2] = gm.fit_predict(aaa[:-1, :-1])
 
@@ -54,7 +54,7 @@ def test_answer():
     for col in ['uniform', 'auto', 'R', 'h_t', 'knn']:
         Xd[col] = Xd[col].apply(lambda x: chr(i + x) if x is not None else None)
         i += len(Xd[col].dropna().unique())
-        dfs.append(Xd[col].apply(lambda x: x == Xd[col]))
+        dfs.append(gower.gower_dist.hamming_similarity(Xd[col].dropna()))
 
     print((dfs[0] == dfs[1]).mean())
     print((dfs[1] == dfs[2]).mean())
