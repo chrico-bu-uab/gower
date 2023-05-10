@@ -5,7 +5,8 @@ from typing import Union
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from dython.nominal import associations
+from dython.nominal import associations, correlation_ratio
+from scipy.ndimage import gaussian_filter1d
 from scipy.sparse import issparse
 from scipy.stats import norm
 from sklearn.cluster import (
@@ -16,6 +17,19 @@ from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
+
+
+def get_cat_features(X):
+    x_n_cols = X.shape[1]
+    if isinstance(X, pd.DataFrame):
+        is_number = np.vectorize(lambda x: not np.issubdtype(x, np.number))
+        cat_features = is_number(X.dtypes)
+    else:
+        cat_features = np.zeros(x_n_cols, dtype=bool)
+        for col in range(x_n_cols):
+            if not np.issubdtype(type(X[0, col]), np.number):
+                cat_features[col] = True
+    return cat_features
 
 
 def get_percentile_range(X, q):
@@ -60,14 +74,7 @@ def gower_matrix(data_x, data_y=None, p=1.0, cat_features=None, weight_cat=None,
     y_n_rows, y_n_cols = Y.shape
 
     if cat_features is None:
-        if isinstance(X, pd.DataFrame):
-            is_number = np.vectorize(lambda x: not np.issubdtype(x, np.number))
-            cat_features = is_number(X.dtypes)
-        else:
-            cat_features = np.zeros(x_n_cols, dtype=bool)
-            for col in range(x_n_cols):
-                if not np.issubdtype(type(X[0, col]), np.number):
-                    cat_features[col] = True
+        cat_features = get_cat_features(X)
     else:
         cat_features = np.array(cat_features)
 
@@ -500,24 +507,24 @@ def cluster_neatness(cluster_sizes, normalize=False):
     (5,)                                           0.0                      0.0
     (1, 1, 1, 1, 1, 1)                             0.0                      0.0
     (6,)                                           0.0                      0.0
-    (1, 1, 1, 1, 2)               0.008253968253968255      0.07738095238095238
-    (1, 1, 1, 2)                               0.01375      0.17142857142857143
-    (1, 1, 1, 3)                                  0.02                   0.1875
-    (1, 5)                        0.022222222222222223      0.20833333333333334
-    (1, 1, 2)                                    0.025                    0.225
-    (1, 1, 4)                                    0.028                   0.2625
-    (1, 1, 2, 2)                                 0.032                      0.3
-    (1, 1, 3)                                     0.03      0.37402597402597404
-    (1, 3)                        0.041666666666666664                    0.375
-    (1, 4)                                     0.03125      0.38961038961038963
-    (1, 2, 3)                      0.04666666666666667                   0.4375
-    (2, 4)                         0.06111111111111111       0.5729166666666666
-    (1, 2, 2)                                    0.055       0.6857142857142857
-    (2, 2, 2)                                    0.096                      0.9
+    (1, 1, 1, 1, 2)               0.011791383219954649      0.11607142857142858
+    (1, 5)                        0.022222222222222223                  0.21875
+    (1, 1, 1, 3)                  0.023809523809523808                 0.234375
+    (1, 1, 1, 2)                  0.018333333333333333                     0.24
+    (1, 1, 4)                                     0.03                0.2953125
+    (1, 1, 2)                                     0.03                      0.3
+    (1, 1, 2, 2)                   0.03428571428571429                   0.3375
+    (1, 4)                                     0.03125       0.4090909090909091
+    (1, 3)                        0.041666666666666664       0.4166666666666667
+    (1, 1, 3)                      0.03333333333333333      0.43636363636363634
+    (1, 2, 3)                     0.047619047619047616                  0.46875
+    (2, 4)                         0.05952380952380952                0.5859375
+    (1, 2, 2)                                    0.055                     0.72
+    (2, 2, 2)                      0.09142857142857143                      0.9
     (1, 2)                        0.037037037037037035                      1.0
-    (2, 3)                         0.08020833333333334                      1.0
-    (3, 3)                         0.10666666666666667                      1.0
-    (2, 2)                          0.1111111111111111                      1.0
+    (2, 3)                          0.0763888888888889                      1.0
+    (2, 2)                                         0.1                      1.0
+    (3, 3)                         0.10158730158730159                      1.0
     """
     if not isinstance(cluster_sizes, list):
         cluster_sizes = cluster_sizes.tolist()
@@ -537,7 +544,7 @@ def cluster_neatness(cluster_sizes, normalize=False):
         # 2. The new elements are all in a new, single cluster
         # We then compute (1-gini(scenario_1))*(1-gini(scenario_2))
         a, b = gini_coefficient(n_ones * [1] + x, return_factors=True)
-        c, d = gini_coefficient(x + [total ** 2], return_factors=True)
+        c, d = gini_coefficient(x + [(total + 1) ** 2 + 1], return_factors=True)
         bd = b * d
         return bd - a * d - b * c + a * c, bd
 
@@ -560,7 +567,7 @@ def cluster_neatness(cluster_sizes, normalize=False):
     return num / den
 
 
-def evaluate_clusters(sample, matrix, actual, method, precomputed):
+def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     if method == cluster_optics_dbscan:
         assignments = cluster_optics_dbscan(
             reachability=precomputed.reachability_,
@@ -574,6 +581,7 @@ def evaluate_clusters(sample, matrix, actual, method, precomputed):
         assignments = method(**sample).fit_predict(matrix)
     assignments = fix_classes(assignments)
     unique, counts = np.unique(assignments, return_counts=True)
+    # unique = [chr(i + 65) for i in unique]
     try:
         if precomputed:
             sil = silhouette_score(matrix, assignments, metric="precomputed")
@@ -590,8 +598,12 @@ def evaluate_clusters(sample, matrix, actual, method, precomputed):
            "assignments": assignments,
            "counts_dict": dict(zip(unique, counts))}
     if actual is not None:
-        out["AR"] = adjusted_rand_score(actual, assignments)
-        out["AMI"] = adjusted_mutual_info_score(actual, assignments)
+        if actual.dtype == float:
+            cr = correlation_ratio(assignments, actual)
+            out["CR"] = cr
+        else:
+            out["AR"] = adjusted_rand_score(actual, assignments)
+            out["AMI"] = adjusted_mutual_info_score(actual, assignments)
     return out
 
 
@@ -607,22 +619,33 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
     else:
         results = [evaluate_clusters(sample, matrix, actual, method,
                                      precomputed) for sample in tqdm(samples)]
-    best = np.argmax([z["neatness"] for z in results])
+    df_results = pd.DataFrame({key: [z[key] for z in results]
+                               for key in results[0].keys() if key not in
+                               ["sample", "assignments", "counts_dict"]})
+    # for i in range(5):
+    #     df_results.iloc[:, i] = gaussian_filter1d(df_results.iloc[:, i],
+    #                                               sigma=df_results.iloc[:, i].std(),
+    #                                               axis=0)
+    best = np.argmax(df_results.neatness)
     best_params = results[best]
 
     # assign clusters
     df["cluster"] = best_params["assignments"]
     df.cluster = df.cluster.astype(str)
 
+    neatest = df_results.neatness.max()
+    df_results.neatness /= neatest
+
     # plt
     var = [z["sample"][param] for z in results]
-    for i in range(1, len(best_params)):
-        if list(results[0].keys())[i] in ["counts_dict", "assignments"]:
+    for col in df_results.columns:
+        if col in ["counts_dict", "assignments"]:
             continue
-        plt.plot(var, [z[list(results[0].keys())[i]] for z in results])
+        plt.plot(var, df_results[col])
     plt.axvline(best_params["sample"][param], c="black", ls="--")
-    legend = ["silhouette", "niceness", "neatness", "gini", "k/N"] + (
-        ["AR", "AMI"] if actual is not None else [])
+    legend = ["silhouette", "niceness", "neatness (%.6f)" % neatest,
+              "gini", "k/N"] + ((["CR"] if actual.dtype == float else ["AR", "AMI"])
+                                if actual is not None else [])
     plt.legend(legend)
 
     # corr
