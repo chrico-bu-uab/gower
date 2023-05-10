@@ -653,6 +653,7 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
                         figsize=(df.shape[1], df.shape[1]))["corr"]
 
     # print results
+    del best_params["assignments"]
     print(best_params)
 
 
