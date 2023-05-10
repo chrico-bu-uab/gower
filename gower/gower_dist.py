@@ -528,8 +528,6 @@ def cluster_neatness(cluster_sizes, normalize=False):
     """
     if not isinstance(cluster_sizes, list):
         cluster_sizes = cluster_sizes.tolist()
-    if cluster_sizes == [1, 2] and normalize:  # special case
-        return 1.0
     total = sum(cluster_sizes)
     n_ones = int(math.sqrt(total))
 
@@ -555,7 +553,7 @@ def cluster_neatness(cluster_sizes, normalize=False):
         return num / den
 
     maximal = (0.0, 1.0)
-    for k in range(n_ones, 0, -1):
+    for k in range(math.ceil(total / 2), 0, -1):
         mu = total // k
         add1 = total - mu * k
         num1, den1 = f([mu + 1] * add1 + [mu] * (k - add1))
