@@ -395,6 +395,7 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]],
     ValueError
         If the number of elements in any cluster is not a natural number.
     """
+
     def f(x):
         # check inputs, convert to numpy array
         if any(x < 1 or x != int(x) for x in x):
@@ -467,6 +468,7 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
     (1, 1, 4)                       0.3333333333333333                      1.0
     (1, 5)                          0.3333333333333333                      1.0
     """
+
     def f(x):
         x = sorted(x)
         n = len(x)
@@ -474,6 +476,7 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
         d = n * s
         G = sum(xi * (n - i) for i, xi in enumerate(x))
         return d + s - 2 * G, d, s
+
     num, den, total = f(cluster_sizes)
     if normalize:
         n_ones = int(-0.5 + math.sqrt(0.25 + total))  # solve n(n+1) = total
@@ -507,29 +510,33 @@ def cluster_neatness(cluster_sizes, normalize=False):
     (5,)                                           0.0                      0.0
     (1, 1, 1, 1, 1, 1)                             0.0                      0.0
     (6,)                                           0.0                      0.0
-    (1, 1, 1, 1, 2)               0.011791383219954649      0.11607142857142858
-    (1, 5)                        0.022222222222222223                  0.21875
-    (1, 1, 1, 3)                  0.023809523809523808                 0.234375
-    (1, 1, 1, 2)                  0.018333333333333333                     0.24
-    (1, 1, 4)                                     0.03                0.2953125
-    (1, 1, 2)                                     0.03                      0.3
-    (1, 1, 2, 2)                   0.03428571428571429                   0.3375
-    (1, 4)                                     0.03125       0.4090909090909091
-    (1, 3)                        0.041666666666666664       0.4166666666666667
-    (1, 1, 3)                      0.03333333333333333      0.43636363636363634
-    (1, 2, 3)                     0.047619047619047616                  0.46875
-    (2, 4)                         0.05952380952380952                0.5859375
-    (1, 2, 2)                                    0.055                     0.72
-    (2, 2, 2)                      0.09142857142857143                      0.9
+    (1, 1, 1, 1, 2)               0.010705192556704931      0.10378582712705936
+    (1, 1, 1, 2)                  0.015714285714285715                      0.2
+    (1, 5)                        0.022222222222222223      0.21544233807266983
+    (1, 1, 1, 3)                  0.022639780018331807      0.21949052132701422
+    (1, 1, 2)                                    0.025                    0.225
+    (1, 1, 4)                     0.029385884509624198      0.28489336492890993
+    (1, 1, 2, 2)                  0.033583868010999086      0.32559241706161135
+    (1, 3)                        0.041666666666666664                    0.375
+    (1, 4)                                     0.03125       0.3977272727272727
+    (1, 1, 3)                      0.03142857142857143                      0.4
+    (1, 2, 3)                     0.047326611671249616       0.4588270142180095
+    (2, 4)                         0.06001120277013953       0.5818029225908373
+    (1, 2, 2)                                    0.055                      0.7
+    (2, 2, 2)                      0.09283226397800183                      0.9
     (1, 2)                        0.037037037037037035                      1.0
-    (2, 3)                          0.0763888888888889                      1.0
-    (2, 2)                                         0.1                      1.0
-    (3, 3)                         0.10158730158730159                      1.0
+    (2, 3)                         0.07857142857142857                      1.0
+    (3, 3)                         0.10314695997555759                      1.0
+    (2, 2)                          0.1111111111111111                      1.0
     """
     if not isinstance(cluster_sizes, list):
         cluster_sizes = cluster_sizes.tolist()
     total = sum(cluster_sizes)
-    n_ones = int(math.sqrt(total))
+    sqrt = math.sqrt(total)
+    n_ones = int(sqrt)
+    s_single = total ** 2
+    diff = total - n_ones ** 2
+    diff_of_diff = 2 * n_ones - 1 - diff
 
     def f(x):
         # What if new elements are introduced?
@@ -542,7 +549,13 @@ def cluster_neatness(cluster_sizes, normalize=False):
         # 2. The new elements are all in a new, single cluster
         # We then compute (1-gini(scenario_1))*(1-gini(scenario_2))
         a, b = gini_coefficient(n_ones * [1] + x, return_factors=True)
-        c, d = gini_coefficient(x + [(total + 1) ** 2 + 1], return_factors=True)
+        c, d = gini_coefficient(x + [s_single], return_factors=True)
+        if not diff:
+            bd = b * d
+            return bd - a * d - b * c + a * c, bd
+        c_, d_ = gini_coefficient(x + [s_single + 2 * total], return_factors=True)
+        c = c * diff_of_diff + c_ * diff
+        d = d * diff_of_diff + d_ * diff
         bd = b * d
         return bd - a * d - b * c + a * c, bd
 
@@ -591,9 +604,9 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     neat = cluster_neatness(counts)
     gini = gini_coefficient(counts, False)
     ratio = len(counts) / sum(counts)
-    out = {"sample": sample, "Silhouette": sil, "Niceness": nice,
-           "GiniRobust": neat, "GiniCoeff": gini, "K/N": ratio,
-           "assignments": assignments,
+    out = {"Silhouette": sil, "Niceness": nice, "GiniRobust": neat,
+           "GiniCoeff": gini, "K/N": ratio,
+           "sample": sample, "assignments": assignments,
            "counts_dict": dict(zip(unique, counts))}
     if actual is not None:
         if actual.dtype == float:
@@ -607,7 +620,6 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
 
 def sample_params(df, matrix, actual, method, samples, param, n_iter, precomputed,
                   use_mp):
-
     # do grid search to get best parameters
     if use_mp:
         results = process_map(partial(evaluate_clusters, matrix=matrix,
@@ -641,14 +653,16 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
             continue
         plt.plot(var, df_results[col])
     plt.axvline(best_params["sample"][param], c="black", ls="--")
-    legend = ["Silhouette", "Niceness", "GiniRobust (%.6f)" % neatest,
-              "GiniCoeff", "K/N"] + ((["CorrRatio"] if actual.dtype == float else ["AdjRandIndex", "AdjMutualInfo"])
-                                if actual is not None else [])
+    legend = ["Silhouette", "Niceness", "GiniRobust (%.6f)" % neatest, "GiniCoeff", "K/N"] + (
+        (["CorrRatio"] if actual.dtype == float else ["AdjRandIndex", "AdjMutualInfo"]) if actual is not None else [])
     plt.legend(legend)
+    plt.show()
 
     # corr
-    corr = associations(df, nom_nom_assoc="theil",
-                        figsize=(df.shape[1], df.shape[1]))["corr"]
+    n_cols = df.shape[1]
+    if n_cols < 1000:
+        corr = associations(df, nom_nom_assoc="theil",
+                            figsize=(n_cols, n_cols))["corr"]
 
     # print results
     del best_params["assignments"]
