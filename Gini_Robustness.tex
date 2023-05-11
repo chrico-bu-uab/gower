@@ -93,7 +93,7 @@
     The two scenarios above are designed to test the robustness of the Gini coefficient, which must first be normalized with respect to $S$.
     The normalized Gini coefficient is defined as the Gini coefficient divided by the maximum possible Gini coefficient given $S$ elements.
     A normalized Gini coefficient of 1 indicates that the cluster sizes are maximally uneven for the given number of elements.
-    Cluster sizes can be said to be maximally uneven if they comprise $\left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor$ singletons and one cluster of size $S - \left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor$.
+    Cluster sizes can be said to be maximally uneven if they comprise $\left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor$ singletons and one cluster of size $S - \left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor$ (although other configurations are sometimes equivalent).
 
     The two values chosen for the number of elements in the new cluster are $S^2$ and $\sqrt{S} $ because they are the smallest values that could maximize the Gini coefficient.
 
