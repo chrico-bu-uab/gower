@@ -20,7 +20,7 @@
 %
 %    This paper introduces two new indices, the Niceness Index and the Gini Robustness Index, for evaluating the quality of clusters identified using unsupervised machine learning algorithms.
 %    Niceness measures both the uniformity of element distribution among clusters (Gini impurity) and the discrepancy between the count of members per cluster and the number of clusters.
-%    Gini Robustness measures the robustness of the evenness of clusters (in terms of the Gini coefficient) to perturbations in the data.
+%    Gini Robustness measures the robustness of the evenness of clusters (in terms of the Gini Coefficient) to perturbations in the data.
 %    The index is designed to work with any type of clustering algorithm and requires only information on cluster sizes as input.
 %    We explain how this index can be used in practice, its properties, and advantages and limitations.
 %
@@ -46,12 +46,12 @@
 %
 %    \section*{Current Cluster Evaluation Methods}
 %
-%    The performance of clustering algorithms is usually evaluated using metrics such as the Davies-Bouldin index or the Silhouette coefficient.
+%    The performance of clustering algorithms is usually evaluated using metrics such as the Davies-Bouldin index or the Silhouette Coefficient.
 %
 %    The Davies-Bouldin index measures the average similarity between clusters based on their mean points and the distance between them.
 %    The closer this value is to 0, the further apart the cluster means are and the more distinct the clusters are.
 %
-%    The Silhouette coefficient evaluates how well each element fits into its assigned cluster by comparing it to elements in other clusters.
+%    The Silhouette Coefficient evaluates how well each element fits into its assigned cluster by comparing it to elements in other clusters.
 %    This method aims at finding meaningful structures in datasets where some points might belong to multiple groups simultaneously.
 %
 %    Both of these methods require distance data and neither evaluates the distribution of the cluster assignments.
@@ -82,29 +82,29 @@
 
     \subsection*{Definition of Gini Robustness}
 
-    Gini Robustness measures how a partitioning's Gini coefficient would be affected by new data.
+    Gini Robustness measures how a partitioning's Gini Coefficient would be affected by new data.
     Two scenarios are considered for clusters comprising $S$ discrete elements:
 
     \begin{enumerate}
-        \item What would happen to the Gini coefficient if we added a new cluster of $S^2$ elements?
-        \item What would happen to the Gini coefficient if we added $\sqrt{S} $ singleton clusters?
+        \item What would happen to the Gini Coefficient if we added a new cluster of $S^2$ elements?
+        \item What would happen to the Gini Coefficient if we added $\sqrt{S} $ singleton clusters?
     \end{enumerate}
 
-    The two scenarios above are designed to test the robustness of the Gini coefficient, which must first be normalized with respect to $S$.
-    The normalized Gini coefficient is defined as the Gini coefficient divided by the maximum possible Gini coefficient given $S$ elements.
-    A normalized Gini coefficient of 1 indicates that the cluster sizes are maximally uneven for the given number of elements.
+    The two scenarios above are designed to test the robustness of the Gini Coefficient, which must first be normalized with respect to $S$.
+    The normalized Gini Coefficient is defined as the Gini Coefficient divided by the maximum possible Gini Coefficient given $S$ elements.
+    A normalized Gini Coefficient of 1 indicates that the cluster sizes are maximally uneven for the given number of elements.
     Cluster sizes can be said to be maximally uneven if they comprise $\left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor$ singletons and one cluster of size $S - \left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor$ (although other configurations are sometimes equivalent).
 
-    The two values chosen for the number of elements in the new cluster are $S^2$ and $\sqrt{S} $ because they are the smallest values that could maximize the Gini coefficient.
+    The two values chosen for the number of elements in the new cluster are $S^2$ and $\sqrt{S} $ because they are the smallest values that could maximize the Gini Coefficient.
 
     To calculate Gini Robustness, let $x_k$ be the size of the $k^{\text{th}}$ cluster in a partition of $S$ elements into $K$ clusters.
     Then (unnormalized) Gini Robustness is defined as:
 
     \[\text{Robustness}(\x{K}) = \left(1 - \widehat{\text{Gini}}\left(\left(\x{K}, S^2\right)\right)\right) \left(1 - \widehat{\text{Gini}}\left(\left(\mathbf{1}_{\sqrt{S}}, \x{K}\right)\right)\right)\]
-    where $\text{Gini}\left(\x{K}\right)$ is the Gini coefficient of the (sorted) cluster sizes:
+    where $\text{Gini}\left(\x{K}\right)$ is the Gini Coefficient of the (sorted) cluster sizes:
 
     \[\text{Gini}(\x{K}) = \frac{\sum_{k=1}^K\sum_{l=1}^Kx_k x_l |k-l|}{2K\sum_{k=1}^K x_k}\]
-    and $\widehat{\text{Gini}}\left(\x{K}\right)$ is the Gini coefficient of the cluster sizes divided by the largest possible Gini coefficient for $S$ elements, which is
+    and $\widehat{\text{Gini}}\left(\x{K}\right)$ is the Gini Coefficient of the cluster sizes divided by the largest possible Gini Coefficient for $S$ elements, which is
     $\text{Gini}\left(\left(\mathbf{1}_{\left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor}, S - \left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor\right)\right)$.
 
     Finally, the result is divided by the maximum possible result given $S$.
