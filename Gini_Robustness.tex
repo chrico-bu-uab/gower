@@ -1,0 +1,194 @@
+\documentclass[8pt]{extarticle}
+
+\usepackage{amsmath}
+\usepackage{bm}
+
+\newcommand{\n}[1]{\mathop{{}\mathbf{\boldsymbol{\mu}}}\nolimits_{#1}}
+\newcommand{\kK}[1]{\mathop{{}\mathbf{K}}\nolimits_{#1}}
+\newcommand{\x}[1]{\mathop{{}\mathbf{x}}\nolimits_{#1}}
+
+\begin{document}
+%    \tiny
+
+%    \title{Nice and Neat: Novel Indices for Evaluating Clusters}
+    \title{Gini Robustness}
+    \author{Chris Coffee}
+    \date{May 4, 2023}
+    \maketitle
+
+%    \section*{Abstract}
+%
+%    This paper introduces two new indices, the Niceness Index and the Gini Robustness Index, for evaluating the quality of clusters identified using unsupervised machine learning algorithms.
+%    Niceness measures both the uniformity of element distribution among clusters (Gini impurity) and the discrepancy between the count of members per cluster and the number of clusters.
+%    Gini Robustness measures the robustness of the evenness of clusters (in terms of the Gini coefficient) to perturbations in the data.
+%    The index is designed to work with any type of clustering algorithm and requires only information on cluster sizes as input.
+%    We explain how this index can be used in practice, its properties, and advantages and limitations.
+%
+%    \section*{Introduction}
+%
+%    Clustering is an important task in machine learning where we group similar elements together while distinguishing them from dissimilar ones.
+%    Clusters are assigned members through the use of unsupervised machine learning algorithms that discover patterns in data.
+%    However, evaluating the quality of identified clusters can be challenging, especially when dealing with large datasets or complex distance metrics.
+%    Most current methods rely on readily accessible underlying distance data or qualitative approaches.
+%
+%    In this paper, we introduce new indices called niceness and Gini Robustness that quantitatively assess how well cluster assignments are distributed based on the cluster sizes.
+%
+%    \section*{Overview of Unsupervised Machine Learning Algorithms}
+%
+%    Unsupervised machine learning algorithms are used to discover patterns in data without relying on predefined labels or categories.
+%    This task can be done using many different approaches including K-means clustering and DBSCAN.
+%
+%    K-means relies on centroids which represent each cluster's mean point; this approach works best when there are clear separations between clusters.
+%    K-means is a fast and simple algorithm, but it tends to produce clusters with well-defined boundaries.
+%
+%    On the other hand, DBSCAN does not require that clusters have well-defined boundaries, but rather takes as input hyperparameter $\epsilon$ which specifies how close points need to be for inclusion within a given cluster.
+%    DBSCAN is more suitable for datasets with noisy or overlapping clusters, but can be computationally expensive, especially when computed on a large distance matrix.
+%
+%    \section*{Current Cluster Evaluation Methods}
+%
+%    The performance of clustering algorithms is usually evaluated using metrics such as the Davies-Bouldin index or the Silhouette coefficient.
+%
+%    The Davies-Bouldin index measures the average similarity between clusters based on their mean points and the distance between them.
+%    The closer this value is to 0, the further apart the cluster means are and the more distinct the clusters are.
+%
+%    The Silhouette coefficient evaluates how well each element fits into its assigned cluster by comparing it to elements in other clusters.
+%    This method aims at finding meaningful structures in datasets where some points might belong to multiple groups simultaneously.
+%
+%    Both of these methods require distance data and neither evaluates the distribution of the cluster assignments.
+%
+%    \section*{Motivation for Developing The Cluster Niceness Index}
+%
+%    To address this gap in existing evaluation techniques, we developed niceness and Gini Robustness - novel indices designed specifically for measuring the extent to which cluster assignments are well-distributed.
+%    Each index takes as input an array containing information on cluster sizes, rather than requiring underlying data about distances between points, thus allowing it to provide meaningful results regardless of the source of the clusters.
+%    In addition, these approaches have advantages over qualitative ones since there is no need for subjective judgement calls when evaluating results; instead, decisions are made based on objective measures provided by our functions.
+%
+%    \section*{Function Description and Example Usage}
+%
+%    \subsection*{Definition of Niceness}
+%
+%    The Cluster Niceness Index is a measure of how uniformly distributed elements are among clusters and how close $\mu$, the average count of elements per cluster, is to $K$, the number of clusters.
+%    It takes an array containing information on cluster sizes and returns a float value between 0 and 1 (inclusive).
+%    The closer this value is to 1, the ``nicer" clustering results will be judged by our function.
+%
+%    Mathematically, it can be expressed by:
+%
+%    \begin{equation}
+%        \text{niceness}=
+%        \Biggr(\biggr(1-\sum_{k=1}^{K}{\Big(\frac{x_k}{S}\Big)^2}\biggr)\cdot \frac{S-K}{\left(\sqrt{S}-1\right)^2}\Biggr)^{\min{K,\mu}}=
+%        \Biggr(\text{Gini Impurity}\cdot \frac{S-K}{\left(\sqrt{S}-1\right)^2}\Biggr)^{\min{K,\mu}}
+%    \end{equation}
+%
+%    where $x_k$ is the number of elements in cluster $i$, $S=\sum_{k=1}^{K}{x_k}$, and $\mu=\frac{S}{K}$.
+
+    \subsection*{Definition of Gini Robustness}
+
+    Gini Robustness measures how a partitioning's Gini coefficient would be affected by new data.
+    Two scenarios are considered for clusters comprising $S$ discrete elements:
+
+    \begin{enumerate}
+        \item What would happen to the Gini coefficient if we added a new cluster of $S^2$ elements?
+        \item What would happen to the Gini coefficient if we added $\sqrt{S} $ singleton clusters?
+    \end{enumerate}
+
+    The two scenarios above are designed to test the robustness of the Gini coefficient, which must first be normalized with respect to $S$.
+    The normalized Gini coefficient is defined as the Gini coefficient divided by the maximum possible Gini coefficient given $S$ elements.
+    A normalized Gini coefficient of 1 indicates that the cluster sizes are maximally uneven for the given number of elements.
+    Cluster sizes can be said to be maximally uneven if they comprise $\left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor$ singletons and one cluster of size $S - \left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor$.
+
+    The two values chosen for the number of elements in the new cluster are $S^2$ and $\sqrt{S} $ because they are the smallest values that could maximize the Gini coefficient.
+
+    To calculate Gini Robustness, let $x_k$ be the size of the $k^{\text{th}}$ cluster in a partition of $S$ elements into $K$ clusters.
+    Then (unnormalized) Gini Robustness is defined as:
+
+    \[\text{Robustness}(\x{K}) = \left(1 - \widehat{\text{Gini}}\left(\left(\x{K}, S^2\right)\right)\right) \left(1 - \widehat{\text{Gini}}\left(\left(\mathbf{1}_{\sqrt{S}}, \x{K}\right)\right)\right)\]
+    where $\text{Gini}\left(\x{K}\right)$ is the Gini coefficient of the (sorted) cluster sizes:
+
+    \[\text{Gini}(\x{K}) = \frac{\sum_{k=1}^K\sum_{l=1}^Kx_k x_l |k-l|}{2K\sum_{k=1}^K x_k}\]
+    and $\widehat{\text{Gini}}\left(\x{K}\right)$ is the Gini coefficient of the cluster sizes divided by the largest possible Gini coefficient for $S$ elements, which is
+    $\text{Gini}\left(\left(\mathbf{1}_{\left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor}, S - \left\lfloor\sqrt{S+\frac{1}{4}}-\frac{1}{2}\right\rfloor\right)\right)$.
+
+    Finally, the result is divided by the maximum possible result given $S$.
+
+    These definitions are convenient in that singletons and single clusters can be considered minimally Gini robust.
+
+    Values range from 0 to 1, with higher values indicating higher robustness.
+
+    A perhaps more compelling way to think of Gini Robustness is as a measure of the (lack of) ``explosiveness" of $\frac{K^{\text{new}}}{K}$ and $\frac{\mu^{\text{new}}}{\mu}$ where ``new" denotes the new value after additional elements are discovered and $\mu=\frac{S}{K}$.
+    One would generally prefer the addition of new data to not drastically change the existing number of clusters or the average cluster size.
+    This is because we expect the data to be i.i.d.\ and thus these values to be stable.
+
+%    \subsection*{Requirements for Inputs To The Functions and Assumptions}
+%
+%    In order for our functions to work properly, they require an input vector containing natural numbers representing each element's assigned cluster size(s).
+%    Any floats or non-positive integers will result in an error message prompting users to provide valid inputs before proceeding further.
+%    This is because fractional or negative cluster sizes are themselves hard to interpret and can yield even harder to interpret results that lie outside [0, 1].
+%
+%    There are two assumptions made about the elements and clusters:
+%
+%    \begin{itemize}
+%        \item Every element is a member of exactly one cluster.
+%        \item Every cluster contains at least one element.
+%    \end{itemize}
+%
+%    \subsection*{Factorization}
+%    Niceness is a product whose first multiplicand is the Gini Impurity Index, which assesses how uniformly points are distributed among clusters.
+%    0 indicates a single cluster.
+%
+%    The second factor $\frac{S-K}{\left(\sqrt{S}-1\right)^2}$ has a number of properties:
+%
+%    \begin{itemize}
+%        \item It assesses the proximity between cluster and population counts; it estimates whether there are too many or too few groups based on the size of the dataset.
+%        If it equals zero, each element gets assigned to its own singleton cluster.
+%        \item $(S-K)$ can be thought of as the number of ``degrees of freedom" that are left after each cluster is assigned an obligatory member.
+%        More clusters means a higher Gini Impurity Index but fewer degrees of freedom.
+%        \item If Gini impurity is maximized for a given $K$, i.e., the clusters are uniform, the product of Gini impurity and degrees of freedom can be reformulated as:
+%        \begin{equation}
+%            \Bigg(1-\sum_{k=1}^{K}{\Big(\frac{x_k}{S}\Big)^2}\Bigg)\cdot{(S-K)}=
+%            \Bigg(1-K\cdot \Big(\frac{\mu}{S}\Big)^2\Bigg)\cdot (S-K)=
+%            \Big(1-\frac{1}{K}\Big)\cdot(S-K)=
+%            (K-1)\cdot(\mu-1)
+%        \end{equation}
+%        This value is maximized when $K=\mu=\sqrt{S}$.
+%        Plugging $\sqrt{S}$ into (2) obtains the denominator, which ensures that niceness falls along the unit interval.
+%    \end{itemize}
+%
+%    \subsection*{Symmetry Property}
+%
+%    Because of equation (2), for all groups of $S$ elements evenly divided into $K$ clusters, the niceness value is equivalent to the same number of elements evenly divided into $\mu$ clusters, i.e.:
+%
+%    \begin{equation}
+%        \text{niceness}(\n{K}) = \Biggr(\frac{(K-1)\cdot(\mu-1)}{\left( {\sqrt {S} }- 1 \right)^2}\Biggr)^{\min{K,\mu}} = \Biggr(\frac{(\mu-1)\cdot(K-1)}{\left( {\sqrt {S} }- 1 \right)^2}\Biggr)^{\min{\mu,K}} = \text{niceness}(\kK{\mu})
+%    \end{equation}
+%
+%    \section*{Advantages \& Limitations}
+%
+%    A major advantage offered by using niceness is its ability to provide meaningful results without requiring knowledge about underlying distances between points.
+%    The index is entirely agnostic to the source of the clusters, so it can be used to evaluate the performance of clustering algorithms on distances representing any type of data and obtained through any metric.
+%    Its symmetry property is aesthetically pleasing and helps ensure that the result is not biased towards singletons or a single cluster.
+%
+%    However, one limitation lies within the fact that only square numbers permit a return value of 1; therefore perfectly ``nice" clusters cannot be formed unless the count of elements is square.
+%    A more ideal index might be one that allows for a return value of 1 for any number of elements.
+%    (In fact, this functionality is provided in the example in the Appendix.)
+%    Additionally, the index penalizes all singleton clusters, even if they are outliers that are not representative of the rest of the data.
+%    Finally, when Gini impurity is maximized, niceness tends to grow quickly as $K$ and $\mu$ increase.
+%
+%    \section*{Future Work}
+%    The most obvious application of niceness would be as a loss function in a grid search, which might result in better tuning for hyperparameters such as DBSCAN's $\epsilon$.
+%    Alternatively, the index might be applicable to K-means clustering, where it could be used to determine the optimal number of clusters.
+%
+%    In addition, we see potential use for this function in regularization across a variety of machine learning applications.
+%    \section*{Conclusion}
+%
+%    In conclusion, niceness offers advantages over existing techniques by allowing users to evaluate clustering results based solely on their distribution, rather than relying on readily accessible distance data or subjective qualitative approaches.
+%    In addition, its symmetry property and factorization into Gini impurity and a numerator-denominator pair provide useful insights into the structure of the index.
+%    The simplicity yet flexibility afforded by this new index make it ideal for anyone looking to perform clustering while avoiding taxing or inaesthetic methods previously needed to evaluate clusters effectively.
+%
+%    \section*{Appendix I: Normalization Scheme}
+%        \begin{equation}
+%            \text{niceness}=\left[\frac{\biggr(1-\sum_{k=1}^{K}{\Big(\frac{x_k}{S}\Big)^2}\biggr)}
+%                                        {\biggr(1-\sum_{k^\ast=1}^{K^\ast}{\Big(\frac{x_{k^\ast}}{S}\Big)^2}\biggr)}\cdot
+%                                  \frac{S-K}{S-K^\ast}
+%                            \right]^{\min{K,\mu}}
+%        \end{equation}
+%    where the $x_{k^\ast}$ are the values that maximize niceness for $S=K\cdot\mu=K^\ast\cdot\mu^\ast$ elements.
+\end{document}
