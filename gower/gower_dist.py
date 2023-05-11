@@ -591,17 +591,17 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     neat = cluster_neatness(counts)
     gini = gini_coefficient(counts, False)
     ratio = len(counts) / sum(counts)
-    out = {"sample": sample, "silhouette": sil, "niceness": nice,
-           "neatness": neat, "gini": gini, "ratio": ratio,
+    out = {"sample": sample, "Silhouette": sil, "Niceness": nice,
+           "GiniRobust": neat, "GiniCoeff": gini, "K/N": ratio,
            "assignments": assignments,
            "counts_dict": dict(zip(unique, counts))}
     if actual is not None:
         if actual.dtype == float:
             cr = correlation_ratio(assignments, actual)
-            out["CR"] = cr
+            out["CorrRatio"] = cr
         else:
-            out["AR"] = adjusted_rand_score(actual, assignments)
-            out["AMI"] = adjusted_mutual_info_score(actual, assignments)
+            out["AdjRandIndex"] = adjusted_rand_score(actual, assignments)
+            out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, assignments)
     return out
 
 
@@ -624,15 +624,15 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
     #     df_results.iloc[:, i] = gaussian_filter1d(df_results.iloc[:, i],
     #                                               sigma=df_results.iloc[:, i].std(),
     #                                               axis=0)
-    best = np.argmax(df_results.neatness)
+    best = np.argmax(df_results.GiniRobust)
     best_params = results[best]
 
     # assign clusters
     df["cluster"] = best_params["assignments"]
     df.cluster = df.cluster.astype(str)
 
-    neatest = df_results.neatness.max()
-    df_results.neatness /= neatest
+    neatest = df_results.GiniRobust.max()
+    df_results.GiniRobust /= neatest
 
     # plt
     var = [z["sample"][param] for z in results]
@@ -641,8 +641,8 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
             continue
         plt.plot(var, df_results[col])
     plt.axvline(best_params["sample"][param], c="black", ls="--")
-    legend = ["silhouette", "niceness", "neatness (%.6f)" % neatest,
-              "gini", "k/N"] + ((["CR"] if actual.dtype == float else ["AR", "AMI"])
+    legend = ["Silhouette", "Niceness", "GiniRobust (%.6f)" % neatest,
+              "GiniCoeff", "K/N"] + ((["CorrRatio"] if actual.dtype == float else ["AdjRandIndex", "AdjMutualInfo"])
                                 if actual is not None else [])
     plt.legend(legend)
 
