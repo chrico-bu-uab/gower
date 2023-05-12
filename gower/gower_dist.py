@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from dython.nominal import associations, correlation_ratio
-from scipy.ndimage import gaussian_filter1d
 from scipy.sparse import issparse
 from scipy.stats import norm
 from sklearn.cluster import (
@@ -479,8 +478,8 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
 
     num, den, total = f(cluster_sizes)
     if normalize:
-        n_ones = int(-0.5 + math.sqrt(0.25 + total))  # solve n(n+1) = total
-        num1, den1, _ = f([1] * n_ones + [total - n_ones])
+        n_singletons = int(-0.5 + math.sqrt(0.25 + total))  # solve n(n+1) = total
+        num1, den1, _ = f([1] * n_singletons + [total - n_singletons])
         if num1:
             if return_factors:
                 return num * den1, den * num1
@@ -510,52 +509,45 @@ def cluster_neatness(cluster_sizes, normalize=False):
     (5,)                                           0.0                      0.0
     (1, 1, 1, 1, 1, 1)                             0.0                      0.0
     (6,)                                           0.0                      0.0
-    (1, 1, 1, 1, 2)               0.010705192556704931      0.10378582712705936
-    (1, 1, 1, 2)                  0.015714285714285715                      0.2
-    (1, 5)                        0.022222222222222223      0.21544233807266983
-    (1, 1, 1, 3)                  0.022639780018331807      0.21949052132701422
-    (1, 1, 2)                                    0.025                    0.225
-    (1, 1, 4)                     0.029385884509624198      0.28489336492890993
-    (1, 1, 2, 2)                  0.033583868010999086      0.32559241706161135
-    (1, 3)                        0.041666666666666664                    0.375
-    (1, 4)                                     0.03125       0.3977272727272727
-    (1, 1, 3)                      0.03142857142857143                      0.4
-    (1, 2, 3)                     0.047326611671249616       0.4588270142180095
-    (2, 4)                         0.06001120277013953       0.5818029225908373
-    (1, 2, 2)                                    0.055                      0.7
-    (2, 2, 2)                      0.09283226397800183                      0.9
-    (1, 2)                        0.037037037037037035                      1.0
-    (2, 3)                         0.07857142857142857                      1.0
-    (3, 3)                         0.10314695997555759                      1.0
-    (2, 2)                          0.1111111111111111                      1.0
+    (1, 1, 1, 1, 2)              0.0011885714285714286    0.0074285714285714285
+    (1, 1, 1, 2)                        0.002685546875     0.023255813953488372
+    (1, 1, 2)                     0.007407407407407408     0.044444444444444446
+    (1, 1, 1, 3)                                 0.014                   0.0875
+    (1, 1, 4)                                  0.02912                    0.182
+    (1, 5)                                      0.0304                     0.19
+    (1, 1, 2, 2)                                0.0312                    0.195
+    (1, 1, 3)                                    0.025       0.2164904862579281
+    (1, 3)                        0.046296296296296294       0.2777777777777778
+    (1, 2, 3)                                   0.0544                     0.34
+    (1, 4)                              0.040283203125       0.3488372093023256
+    (1, 2, 2)                      0.06302083333333333       0.5457364341085271
+    (2, 4)                                       0.088                     0.55
+    (2, 2, 2)                                    0.128                      0.8
+    (1, 2)                        0.020833333333333332                      1.0
+    (2, 3)                              0.115478515625                      1.0
+    (3, 3)                                        0.16                      1.0
+    (2, 2)                         0.16666666666666666                      1.0
     """
     if not isinstance(cluster_sizes, list):
         cluster_sizes = cluster_sizes.tolist()
     total = sum(cluster_sizes)
-    sqrt = math.sqrt(total)
-    n_ones = int(sqrt)
-    s_single = total ** 2
-    diff = total - n_ones ** 2
-    diff_of_diff = 2 * n_ones - 1 - diff
+    n_singletons = int(math.sqrt(total))
+    s_single_cluster = (total - 1) ** 2
 
     def f(x):
         # What if new elements are introduced?
         # How robust is the Gini coefficient of our clustering to new elements
-        # comprising singletons and new, very large clusters?
+        # comprising singletons and members of the largest cluster?
         # In other words, not all values of 0 for the Gini coefficient are
         # equal. We want to find the one that is most robust to new elements.
         # In order to do this, we consider two scenarios:
         # 1. The new elements are all singletons
-        # 2. The new elements are all in a new, single cluster
+        # 2. The new elements are all members of the largest cluster
         # We then compute (1-gini(scenario_1))*(1-gini(scenario_2))
-        a, b = gini_coefficient(n_ones * [1] + x, return_factors=True)
-        c, d = gini_coefficient(x + [s_single], return_factors=True)
-        if not diff:
-            bd = b * d
-            return bd - a * d - b * c + a * c, bd
-        c_, d_ = gini_coefficient(x + [s_single + 2 * total], return_factors=True)
-        c = c * diff_of_diff + c_ * diff
-        d = d * diff_of_diff + d_ * diff
+        a, b = gini_coefficient(n_singletons * [1] + x, return_factors=True)
+        x = x.copy()
+        x[np.argmax(x)] += s_single_cluster
+        c, d = gini_coefficient(x, return_factors=True)
         bd = b * d
         return bd - a * d - b * c + a * c, bd
 
@@ -592,7 +584,6 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
         assignments = method(**sample).fit_predict(matrix)
     assignments = fix_classes(assignments)
     unique, counts = np.unique(assignments, return_counts=True)
-    # unique = [chr(i + 65) for i in unique]
     try:
         if precomputed:
             sil = silhouette_score(matrix, assignments, metric="precomputed")
@@ -632,10 +623,8 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
     df_results = pd.DataFrame({key: [z[key] for z in results]
                                for key in results[0].keys() if key not in
                                ["sample", "assignments", "counts_dict"]})
-    # for i in range(5):
-    #     df_results.iloc[:, i] = gaussian_filter1d(df_results.iloc[:, i],
-    #                                               sigma=df_results.iloc[:, i].std(),
-    #                                               axis=0)
+
+    # find the best parameters based on Gini Robustness (aka Neatness)
     best = np.argmax(df_results.GiniRobust)
     best_params = results[best]
 
@@ -643,10 +632,11 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
     df["cluster"] = best_params["assignments"]
     df.cluster = df.cluster.astype(str)
 
+    # normalize Gini Robustness for plotting
     neatest = df_results.GiniRobust.max()
     df_results.GiniRobust /= neatest
 
-    # plt
+    # plot param vs. metrics
     var = [z["sample"][param] for z in results]
     for col in df_results.columns:
         if col in ["counts_dict", "assignments"]:
@@ -658,7 +648,7 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
     plt.legend(legend)
     plt.show()
 
-    # corr
+    # display corr
     n_cols = df.shape[1]
     if n_cols < 1000:
         corr = associations(df, nom_nom_assoc="theil",
@@ -673,7 +663,6 @@ def optimize_dbscan(df, actual=None, factor=10.0, offset=0.0, n_iter=1000,
                     use_mp=True, min_samples=1, precomputed=False, **kwargs):
     df = df.copy()
 
-    # get distance matrix
     if precomputed:
         matrix = gower_matrix(df.to_numpy(), use_mp=use_mp, **kwargs)
     else:
@@ -690,7 +679,6 @@ def optimize_dbscan(df, actual=None, factor=10.0, offset=0.0, n_iter=1000,
 def optimize_gm(df, actual=None, n_iter=10, use_mp=True):
     df = df.copy()
 
-    # get distance matrix
     matrix = df.to_numpy()
 
     samples = [{"n_components": z, "random_state": 42}
@@ -705,7 +693,6 @@ def optimize_agglo(df, actual=None, n_iter=10, use_mp=True, precomputed=False,
                    **kwargs):
     df = df.copy()
 
-    # get distance matrix
     if precomputed:
         matrix = gower_matrix(df.to_numpy(), use_mp=use_mp, **kwargs)
     else:
@@ -724,7 +711,6 @@ def optimize_cluster_optics_dbscan(df, actual=None, factor=10.0, offset=0.0,
                                    metric="minkowski", **kwargs):
     df = df.copy()
 
-    # get distance matrix
     if metric == "precomputed":
         matrix = gower_matrix(df.to_numpy(), use_mp=use_mp, **kwargs)
     else:
