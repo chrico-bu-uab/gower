@@ -50,7 +50,7 @@ def get_num_weight(x):
     return math.sqrt(np.prod(x ** -x))  # perplexity
 
 
-def gower_matrix(data_x, data_y=None, p=1.0, cat_features=None, weight_cat=None,
+def gower_matrix(data_x, data_y=None, cat_features=None, weight_cat=None,
                  weight_num=None, lower_q=0.0, c_t=0.0, knn=False, use_mp=True,
                  **tqdm_kwargs):
     # function checks
@@ -159,7 +159,7 @@ def gower_matrix(data_x, data_y=None, p=1.0, cat_features=None, weight_cat=None,
             g_t / (dist.ppf(1 - lower_q) - dist.ppf(lower_q)))
         print("h_t:", h_t)
     f = partial(call_gower_get, x_n_rows=x_n_rows, y_n_rows=y_n_rows,
-                X_cat=X_cat, X_num=X_num, p=p, Y_cat=Y_cat, Y_num=Y_num,
+                X_cat=X_cat, X_num=X_num, Y_cat=Y_cat, Y_num=Y_num,
                 weight_cat=weight_cat, weight_num=weight_num,
                 weight_sum=weight_sum, g_t=g_t, h_t=h_t, knn=knn,
                 knn_models=knn_models.copy())
@@ -179,7 +179,7 @@ def gower_matrix(data_x, data_y=None, p=1.0, cat_features=None, weight_cat=None,
     return out
 
 
-def gower_get(xi_cat, xi_num, xj_cat, xj_num, p, feature_weight_cat,
+def gower_get(xi_cat, xi_num, xj_cat, xj_num, feature_weight_cat,
               feature_weight_num, feature_weight_sum, g_t, h_t, knn,
               knn_models):
     # categorical columns
@@ -189,7 +189,7 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, p, feature_weight_cat,
     sum_cat = np.multiply(feature_weight_cat, sij_cat).sum(axis=1)
 
     # numerical columns
-    abs_delta = np.absolute(xi_num - xj_num) ** p
+    abs_delta = np.absolute(xi_num - xj_num)
     abs_delta = np.maximum(abs_delta - h_t, np.zeros_like(abs_delta))
     xi_num = xi_num.to_numpy()
     if knn_models:
@@ -210,12 +210,11 @@ def gower_get(xi_cat, xi_num, xj_cat, xj_num, p, feature_weight_cat,
     sum_num = np.multiply(feature_weight_num, sij_num).sum(axis=1)
     sums = np.add(sum_cat, sum_num)
     sum_sij = np.divide(sums, feature_weight_sum)
-    sum_sij **= 1 / p
 
     return sum_sij
 
 
-def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, p, Y_cat, Y_num,
+def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, Y_cat, Y_num,
                    weight_cat, weight_num, weight_sum, g_t, h_t, knn,
                    knn_models):
     j_start = i if x_n_rows == y_n_rows else 0
@@ -224,7 +223,7 @@ def call_gower_get(i, x_n_rows, y_n_rows, X_cat, X_num, p, Y_cat, Y_num,
                     X_num.iloc[i, :],
                     Y_cat.iloc[j_start:y_n_rows, :],
                     Y_num.iloc[j_start:y_n_rows, :],
-                    p, weight_cat, weight_num, weight_sum, g_t, h_t, knn,
+                    weight_cat, weight_num, weight_sum, g_t, h_t, knn,
                     knn_models)
     return res
 
@@ -496,11 +495,13 @@ def cluster_neatness(cluster_sizes, normalize=False):
     Examples:
     ---------
     >>> from gower.gower_dist import *
-    >>> C = [x for i in range(3, 7) for x in all_possible_clusters(i)]
+    >>> C = [x for i in range(1, 7) for x in all_possible_clusters(i)]
     >>> pairs = [(str(tuple(x)), cluster_neatness(x),
     ...           cluster_neatness(x, True)) for x in C]
     >>> for k, v1, v2 in sorted(pairs, key=lambda x: (x[2], x[1])):
     ...     print(f"{k:25}{v1:25}{v2:25}")
+    (1, 1)                                         0.0                      0.0
+    (2,)                                           0.0                      0.0
     (1, 1, 1)                                      0.0                      0.0
     (3,)                                           0.0                      0.0
     (1, 1, 1, 1)                                   0.0                      0.0
@@ -509,59 +510,62 @@ def cluster_neatness(cluster_sizes, normalize=False):
     (5,)                                           0.0                      0.0
     (1, 1, 1, 1, 1, 1)                             0.0                      0.0
     (6,)                                           0.0                      0.0
-    (1, 1, 1, 1, 2)              0.0011885714285714286    0.0074285714285714285
-    (1, 1, 1, 2)                        0.002685546875     0.023255813953488372
-    (1, 1, 2)                     0.007407407407407408     0.044444444444444446
-    (1, 1, 1, 3)                                 0.014                   0.0875
-    (1, 1, 4)                                  0.02912                    0.182
-    (1, 5)                                      0.0304                     0.19
-    (1, 1, 2, 2)                                0.0312                    0.195
-    (1, 1, 3)                                    0.025       0.2164904862579281
-    (1, 3)                        0.046296296296296294       0.2777777777777778
-    (1, 2, 3)                                   0.0544                     0.34
-    (1, 4)                              0.040283203125       0.3488372093023256
-    (1, 2, 2)                      0.06302083333333333       0.5457364341085271
-    (2, 4)                                       0.088                     0.55
+    (1, 1, 1, 1, 2)               0.008739495798319327       0.0546218487394958
+    (1, 1, 1, 2)                  0.014945652173913044                    0.125
+    (1, 1, 1, 3)                  0.023529411764705882      0.14705882352941177
+    (1, 1, 2)                      0.02857142857142857      0.17142857142857143
+    (1, 5)                         0.03294117647058824      0.20588235294117646
+    (1, 1, 4)                      0.03623529411764706      0.22647058823529412
+    (1, 1, 2, 2)                   0.03882352941176471       0.2426470588235294
+    (1, 1, 3)                      0.03768115942028986       0.3151515151515151
+    (1, 3)                         0.05952380952380952      0.35714285714285715
+    (1, 2, 3)                       0.0611764705882353      0.38235294117647056
+    (1, 4)                         0.04585597826086957       0.3835227272727273
+    (2, 4)                         0.09117647058823529       0.5698529411764706
+    (1, 2, 2)                      0.07173913043478261                      0.6
     (2, 2, 2)                                    0.128                      0.8
-    (1, 2)                        0.020833333333333332                      1.0
-    (2, 3)                              0.115478515625                      1.0
+    (1, 2)                        0.052083333333333336                      1.0
+    (2, 3)                         0.11956521739130435                      1.0
     (3, 3)                                        0.16                      1.0
     (2, 2)                         0.16666666666666666                      1.0
+    (1,)                                           1.0                      1.0
     """
     if not isinstance(cluster_sizes, list):
-        cluster_sizes = cluster_sizes.tolist()
+        cluster_sizes = sorted(cluster_sizes.tolist())
     total = sum(cluster_sizes)
     n_singletons = int(math.sqrt(total))
-    s_single_cluster = (total - 1) ** 2
+    s_single_cluster = total ** 2 - n_singletons
+    memo = {}
 
-    def f(x):
+    def g(x):
         # What if new elements are introduced?
         # How robust is the Gini coefficient of our clustering to new elements
         # comprising singletons and members of the largest cluster?
-        # In other words, not all values of 0 for the Gini coefficient are
-        # equal. We want to find the one that is most robust to new elements.
-        # In order to do this, we consider two scenarios:
+        # We consider two scenarios:
         # 1. The new elements are all singletons
         # 2. The new elements are all members of the largest cluster
         # We then compute (1-gini(scenario_1))*(1-gini(scenario_2))
+        t = tuple(x)
+        if t in memo:
+            return memo[t]
         a, b = gini_coefficient(n_singletons * [1] + x, return_factors=True)
-        x = x.copy()
-        x[np.argmax(x)] += s_single_cluster
-        c, d = gini_coefficient(x, return_factors=True)
+        c, d = gini_coefficient(x[:-1] + [x[-1] + s_single_cluster],
+                                return_factors=True)
         bd = b * d
-        return bd - a * d - b * c + a * c, bd
+        memo[t] = bd - a * d - b * c + a * c, bd
+        return memo[t]
 
-    num, den = f(cluster_sizes)
+    num, den = g(cluster_sizes)
     if not den:
         return 0.0
     if not normalize:
         return num / den
 
     maximal = (0.0, 1.0)
-    for k in range(math.ceil(total / 2), 0, -1):
+    for k in range(total, 0, -1):
         mu = total // k
         add1 = total - mu * k
-        num1, den1 = f([mu + 1] * add1 + [mu] * (k - add1))
+        num1, den1 = g([mu] * (k - add1) + [mu + 1] * add1)
         if num1 * maximal[1] > maximal[0] * den1:
             maximal = (num1, den1)
 
