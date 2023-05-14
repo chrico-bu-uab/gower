@@ -473,7 +473,8 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
         s = sum(x)
         d = n * s
         G = sum(xi * (n - i) for i, xi in enumerate(x))
-        return d + s - 2 * G, d, s
+        return (d + s - 2 * G, d, s) if all(isinstance(i, int) for i in x) \
+            else (1 + 1 / n - 2 * G / d, 1, s)
 
     num, den, total = f(cluster_sizes)
     if normalize:
@@ -531,7 +532,8 @@ def cluster_neatness(cluster_sizes, normalize=False):
     (1,)                                           1.0                      1.0
     """
     if not isinstance(cluster_sizes, list):
-        cluster_sizes = sorted(cluster_sizes.tolist())
+        cluster_sizes = cluster_sizes.tolist()
+    cluster_sizes = sorted(cluster_sizes)
     total = sum(cluster_sizes)
     n_singletons = int(math.sqrt(total))
     s_single_cluster = total ** 2 - n_singletons
