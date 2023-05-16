@@ -34,13 +34,13 @@ def get_cat_features(X):
 def get_percentile_range(X, q):
     assert (X.shape[1] == len(q)), (X.shape, len(q))
     if hasattr(q, "__iter__"):
-        out = np.array([np.nanpercentile(X.iloc[:, i], 100 - q[i], axis=0) -
-                        np.nanpercentile(X.iloc[:, i], q[i], axis=0)
+        out = np.array([np.nanpercentile(X.iloc[:, i], 100 - q[i]) -
+                        np.nanpercentile(X.iloc[:, i], q[i])
                         for i in range(len(q))])
     else:
-        out = np.array([np.nanpercentile(X.iloc[:, i], 100 - q, axis=0) -
-                        np.nanpercentile(X.iloc[:, i], q, axis=0)
-                        for i in range(X.shape[1])])
+        out = np.nanpercentile(X, 100 - q, axis=0) - \
+              np.nanpercentile(X, q, axis=0)
+
     out[out == 0] = 1
     return out
 
