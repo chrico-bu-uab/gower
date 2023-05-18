@@ -587,23 +587,24 @@ def cluster_neatness(cluster_sizes, normalize=False):
 
 def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     if method == cluster_optics_dbscan:
-        assignments = cluster_optics_dbscan(
+        clusters = cluster_optics_dbscan(
             reachability=precomputed.reachability_,
             core_distances=precomputed.core_distances_,
             ordering=precomputed.ordering_,
             eps=sample["eps"],
         )
     elif precomputed:
-        assignments = method(metric="precomputed", **sample).fit_predict(matrix)
+        clusters = method(metric="precomputed", **sample).fit_predict(matrix)
     else:
-        assignments = method(**sample).fit_predict(matrix)
-    assignments = fix_classes(assignments)
-    unique, counts = np.unique(assignments, return_counts=True)
+        clusters = method(**sample).fit_predict(matrix)
+    clusters = fix_classes(clusters)
+    _, counts = np.unique(clusters, return_counts=True)
+    counts_dict = dict(zip(*np.unique(counts, return_counts=True)))
     try:
         if precomputed:
-            sil = silhouette_score(matrix, assignments, metric="precomputed")
+            sil = silhouette_score(matrix, clusters, metric="precomputed")
         else:
-            sil = silhouette_score(matrix, assignments)
+            sil = silhouette_score(matrix, clusters)
     except ValueError:
         sil = np.nan
     nice = cluster_niceness(counts)
@@ -612,15 +613,15 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     ratio = len(counts) / sum(counts)
     out = {"Silhouette": sil, "Niceness": nice, "GiniRobust": neat,
            "GiniCoeff": gini, "K/N": ratio,
-           "sample": sample, "assignments": assignments,
-           "counts_dict": dict(zip(unique, counts))}
+           "sample": sample, "clusters": clusters,
+           "counts_dict": counts_dict}
     if actual is not None:
         if actual.dtype == float:
-            cr = correlation_ratio(assignments, actual)
+            cr = correlation_ratio(clusters, actual)
             out["CorrRatio"] = cr
         else:
-            out["AdjRandIndex"] = adjusted_rand_score(actual, assignments)
-            out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, assignments)
+            out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
+            out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, clusters)
     return out
 
 
@@ -637,14 +638,14 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
                                      precomputed) for sample in tqdm(samples)]
     df_results = pd.DataFrame({key: [z[key] for z in results]
                                for key in results[0].keys() if key not in
-                               ["sample", "assignments", "counts_dict"]})
+                               ["sample", "clusters", "counts_dict"]})
 
     # find the best parameters based on Gini Robustness (aka Neatness)
     best = np.argmax(df_results.GiniRobust)
     best_params = results[best]
 
     # assign clusters
-    df["cluster"] = best_params["assignments"]
+    df["cluster"] = best_params["clusters"]
     df.cluster = df.cluster.astype(str)
 
     # normalize Gini Robustness for plotting
@@ -654,7 +655,7 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
     # plot param vs. metrics
     var = [z["sample"][param] for z in results]
     for col in df_results.columns:
-        if col in ["counts_dict", "assignments"]:
+        if col in ["counts_dict", "clusters"]:
             continue
         plt.plot(var, df_results[col])
     plt.axvline(best_params["sample"][param], c="black", ls="--")
@@ -670,7 +671,7 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
                             figsize=(n_cols, n_cols))["corr"]
 
     # print results
-    del best_params["assignments"]
+    del best_params["clusters"]
     print(best_params)
 
 
