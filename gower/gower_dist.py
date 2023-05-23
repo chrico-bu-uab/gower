@@ -666,7 +666,7 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
 
     # display corr
     n_cols = df.shape[1]
-    if n_cols < 1000:
+    if n_cols < 20:
         corr = associations(df, nom_nom_assoc="theil",
                             figsize=(n_cols, n_cols))["corr"]
 
