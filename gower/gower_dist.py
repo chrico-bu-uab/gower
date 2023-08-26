@@ -8,10 +8,9 @@ import pandas as pd
 from dython.nominal import associations, correlation_ratio
 from scipy.sparse import issparse
 from scipy.stats import norm
-from sklearn.cluster import (
-    AgglomerativeClustering, DBSCAN, OPTICS, cluster_optics_dbscan)
-from sklearn.metrics import (
-    adjusted_mutual_info_score, adjusted_rand_score, silhouette_score)
+from sklearn.cluster import AgglomerativeClustering, DBSCAN, OPTICS, cluster_optics_dbscan
+from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, silhouette_score, davies_bouldin_score, \
+    calinski_harabasz_score
 from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
@@ -302,6 +301,17 @@ def all_possible_clusters(n, memo=None):
     return out
 
 
+def transpose_counts(x):
+    x = list(x)
+    y = []
+    while x:
+        if len(x) == 1:
+            return y + [1] * x[0]
+        y.append(len(x))
+        x = [i - 1 for i in x if i > 1]
+    return y
+
+
 def tidy_clusters(n):
     r = math.sqrt(n)
     r_floor = int(r)
@@ -319,78 +329,49 @@ def tidy_clusters(n):
         return [r_floor] * r_floor
 
 
-def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]],
-                     normalize=True) -> float:
+def niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     """
-    This value tells you to what extent clusters are "nice". It is not a measure
-    of the separation between clusters such as the Davies-Bouldin index, but
-    rather a measure of how well clusters are distributed.
-
-    Note that only a square number of elements permits a return value of 1.0,
-    but any number of elements could return a value of 0.0 (besides 1, which
-    returns NaN).
-
-    If there are fewer than 2 elements, the value is undefined.
-    If the elements comprise one cluster, or the clusters are all singletons,
-    the value is 0 as useless clusters are not "nice".
-    Otherwise, if the elements are evenly distributed, and the number of
-    clusters equals the number of elements per cluster, the value is 1.
-    In all other cases the value is on the open interval (0, 1).
-
-    One additional property of this function is that it is symmetric with
-    respect to the number of clusters and the number of elements per cluster
-    when the elements are evenly distributed:
-
-    cluster_niceness([a]*b) == cluster_niceness([b]*a)
-
-    This function is designed to be used in conjunction with grid search and
-    DBSCAN to find the best value for the "eps" parameter.
-
-    Example 1: Clusterings of 1-6 elements
-    ---------------------------------------
+    Examples:
+    ---------
     >>> from gower.gower_dist import *
-    >>> C = [x for i in range(1, 7) for x in all_possible_clusters(i)]
-    >>> pairs = [(str(tuple(x)), cluster_niceness(x, False), cluster_niceness(x)
-    ...           ) for x in C]
-    >>> for k, v1, v2 in sorted(pairs, key=lambda x: (x[2], x[1])):
-    ...     print(f"{k:25}{v1:25}{v2:25}")
-    (1,)                                           nan                      nan
-    (1, 1)                                         0.0                      nan
-    (2,)                                           0.0                      nan
-    (1, 1, 1)                                      0.0                      0.0
-    (3,)                                           0.0                      0.0
-    (1, 1, 1, 1)                                   0.0                      0.0
-    (4,)                                           0.0                      0.0
-    (1, 1, 1, 1, 1)                                0.0                      0.0
-    (5,)                                           0.0                      0.0
-    (1, 1, 1, 1, 1, 1)                             0.0                      0.0
-    (6,)                                           0.0                      0.0
-    (1, 5)                         0.27967548206998305        0.308641975308642
-    (1, 1, 1, 1, 2)                 0.3034661711693837       0.3219516401426915
-    (1, 1, 1, 2)                    0.3904448798314012      0.42044820762685725
-    (1, 4)                          0.3947962732559819       0.4444444444444444
-    (1, 1, 2)                       0.5343674833364678       0.5343674833364678
-    (1, 1, 1, 3)                    0.5055483130871623       0.5443310539518174
-    (1, 1, 4)                       0.5097085660725442                   0.5625
-    (1, 3)                                      0.5625                   0.5625
-    (1, 1, 2, 2)                    0.5700406478222112       0.6137708673769092
-    (1, 1, 3)                       0.5959669640956297       0.6577980034215026
-    (2, 4)                          0.7159692340991565       0.7901234567901234
-    (1, 2, 2)                       0.7445183931563902       0.8217615103414929
-    (1, 2, 3)                       0.7614164999355287       0.8402777777777777
-    (1, 2)                          0.7552705498301204                      1.0
-    (2, 3)                          0.8882916148259593                      1.0
-    (2, 2, 2)                       0.9061485619067451                      1.0
-    (3, 3)                          0.9061485619067451                      1.0
-    (2, 2)                                         1.0                      1.0
+    >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
+    >>> pairs = [(str(tuple(x)), niceness(x)) for x in C]
+    >>> for k, v1 in sorted(pairs, key=lambda x: x[1]): print(f"{k:50}{v1:25}")
+    (0,)                                                                    nan
+    (1,)                                                                    nan
+    (1, 1)                                                                  nan
+    (2,)                                                                    nan
+    (1, 1, 1)                                                               0.0
+    (3,)                                                                    0.0
+    (1, 1, 1, 1)                                                            0.0
+    (4,)                                                                    0.0
+    (1, 1, 1, 1, 1)                                                         0.0
+    (5,)                                                                    0.0
+    (1, 1, 1, 1, 1, 1)                                                      0.0
+    (6,)                                                                    0.0
+    (1, 1, 1, 1, 2)                                          0.3888888888888889
+    (1, 1, 1, 2)                                                            0.5
+    (1, 5)                                                   0.5555555555555556
+    (1, 1, 2)                                                             0.625
+    (1, 4)                                                   0.6666666666666666
+    (1, 1, 1, 3)                                             0.6666666666666666
+    (1, 1, 2, 2)                                             0.7222222222222222
+    (1, 3)                                                                 0.75
+    (1, 1, 4)                                                              0.75
+    (1, 1, 3)                                                0.7777777777777778
+    (1, 2, 2)                                                0.8888888888888888
+    (2, 4)                                                   0.8888888888888888
+    (1, 2, 3)                                                0.9166666666666666
+    (1, 2)                                                                  1.0
+    (2, 2)                                                                  1.0
+    (2, 3)                                                                  1.0
+    (2, 2, 2)                                                               1.0
+    (3, 3)                                                                  1.0
 
     Parameters
     ----------
     cluster_sizes : Union[np.ndarray[int], list[int]]
         A 1D array of cluster sizes.
-    normalize : bool, optional
-        Whether to normalize the intermediate result by the maximum possible
-        value.
 
     Returns
     -------
@@ -404,34 +385,29 @@ def cluster_niceness(cluster_sizes: Union[np.ndarray[int], list[int]],
     """
 
     def f(x):
-        # check inputs, convert to numpy array
-        if any(x < 1 or x != int(x) for x in x):
-            raise ValueError("Every count must be a positive integer.")
-        x = np.array(x, dtype=float)
+        x = np.array(x)
 
-        _k = len(x)
-        _n = x.sum()
-        _n_2 = _n ** 2
+        n = x.sum()
+        n_2 = n ** 2
 
         # compute factors
-        gi = _n_2 - np.square(x).sum()
-        dof = _n - _k
-        _out = gi * dof
+        gi0 = n_2 - np.square(x).sum()
+        dof0 = n - len(x)
+        # T = transpose_counts(x)
+        # gi1 = n_2 - np.square(T).sum()
+        # dof1 = n - len(T)
+        #
+        # return max(gi0 * dof0, gi1 * dof1)
+        return gi0 * dof0
 
-        return _k, _n, _n_2, _out
+    total = sum(cluster_sizes)
+    if total < 2:
+        return np.nan
 
-    k, n, n_2, out = f(cluster_sizes)
+    out = f(cluster_sizes)
+    out /= f(tidy_clusters(total))  # tidy_clusters maximizes f given total
 
-    if normalize:
-        # get the nicest possible clustering for the given number of elements
-        _, _, _, out_ = f(tidy_clusters(int(n)))
-        out /= out_
-    else:  # n is square <==> nicest possible == 1
-        # divide by the denoms that would have cancelled had we normalized
-        out /= n_2
-        out /= n - 2 * math.sqrt(n) + 1  # compute (sqrt(n)-1)^2
-
-    return out ** min(k, n / k)  # "gamma" correction
+    return out
 
 
 def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
@@ -440,11 +416,12 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
     Examples:
     ---------
     >>> from gower.gower_dist import *
-    >>> C = [x for i in range(1, 7) for x in all_possible_clusters(i)]
+    >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
     >>> pairs = [(str(tuple(x)), gini_coefficient(x, False),
     ...           gini_coefficient(x)) for x in C]
     >>> for k, v1, v2 in sorted(pairs, key=lambda x: (x[2], x[1])):
     ...     print(f"{k:25}{v1:25}{v2:25}")
+    (0,)                                           0.0                      0.0
     (1,)                                           0.0                      0.0
     (1, 1)                                         0.0                      0.0
     (2,)                                           0.0                      0.0
@@ -482,12 +459,11 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
         s = sum(x)
         d = n * s
         G = sum(xi * (n - i) for i, xi in enumerate(x))
-        return (d + s - 2 * G, d, s) if all(isinstance(i, int) for i in x) \
-            else (1 + 1 / n - 2 * G / d, 1, s)
+        return d + s - 2 * G, d, s
 
     num, den, total = f(cluster_sizes)
     if normalize:
-        n_singletons = int(-0.5 + math.sqrt(0.25 + total))  # solve n(n+1) = total
+        n_singletons = int(-0.5 + math.sqrt(0.25 + total))  # solve n(n+1)=total
         num1, den1, _ = f([1] * n_singletons + [total - n_singletons])
         if num1:
             if return_factors:
@@ -497,21 +473,25 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
             den = 1
     if return_factors:
         return num, den
-    return num / den
+    if den:
+        return num / den
+    return 0.0
 
 
-def cluster_neatness(cluster_sizes, normalize=False):
+def neatness(cluster_sizes, normalize=True):
     """
     Examples:
     ---------
     >>> from gower.gower_dist import *
-    >>> C = [x for i in range(1, 7) for x in all_possible_clusters(i)]
-    >>> pairs = [(str(tuple(x)), cluster_neatness(x),
-    ...           cluster_neatness(x, True)) for x in C]
+    >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
+    >>> pairs = [(str(tuple(x)), neatness(x, False),
+    ...           neatness(x)) for x in C]
     >>> for k, v1, v2 in sorted(pairs, key=lambda x: (x[2], x[1])):
     ...     print(f"{k:25}{v1:25}{v2:25}")
-    (1, 1)                                         0.0                      0.0
-    (2,)                                           0.0                      0.0
+    (0,)                                           nan                      nan
+    (1,)                                           nan                      nan
+    (1, 1)                                         nan                      nan
+    (2,)                                           nan                      nan
     (1, 1, 1)                                      0.0                      0.0
     (3,)                                           0.0                      0.0
     (1, 1, 1, 1)                                   0.0                      0.0
@@ -520,50 +500,51 @@ def cluster_neatness(cluster_sizes, normalize=False):
     (5,)                                           0.0                      0.0
     (1, 1, 1, 1, 1, 1)                             0.0                      0.0
     (6,)                                           0.0                      0.0
-    (1, 1, 1, 1, 2)               0.008739495798319327       0.0546218487394958
-    (1, 1, 1, 2)                  0.014945652173913044                    0.125
-    (1, 1, 1, 3)                  0.023529411764705882      0.14705882352941177
-    (1, 1, 2)                      0.02857142857142857      0.17142857142857143
-    (1, 5)                         0.03294117647058824      0.20588235294117646
-    (1, 1, 4)                      0.03623529411764706      0.22647058823529412
-    (1, 1, 2, 2)                   0.03882352941176471       0.2426470588235294
-    (1, 1, 3)                      0.03768115942028986       0.3151515151515151
-    (1, 3)                         0.05952380952380952      0.35714285714285715
-    (1, 2, 3)                       0.0611764705882353      0.38235294117647056
-    (1, 4)                         0.04585597826086957       0.3835227272727273
-    (2, 4)                         0.09117647058823529       0.5698529411764706
-    (1, 2, 2)                      0.07173913043478261                      0.6
-    (2, 2, 2)                                    0.128                      0.8
-    (1, 2)                        0.052083333333333336                      1.0
-    (2, 3)                         0.11956521739130435                      1.0
-    (3, 3)                                        0.16                      1.0
-    (2, 2)                         0.16666666666666666                      1.0
-    (1,)                                           1.0                      1.0
+    (1, 1, 1, 1, 2)               0.011111111111111112     0.041666666666666664
+    (1, 1, 1, 2)                                  0.02      0.08571428571428572
+    (1, 1, 1, 3)                                  0.04                     0.15
+    (1, 1, 2)                     0.041666666666666664                   0.1875
+    (1, 1, 2, 2)                   0.05333333333333334                      0.2
+    (1, 1, 3)                                    0.075      0.32142857142857145
+    (1, 1, 4)                                      0.1                    0.375
+    (1, 5)                                         0.1                    0.375
+    (1, 2, 2)                                      0.1      0.42857142857142855
+    (1, 2, 3)                      0.11666666666666667                   0.4375
+    (2, 2, 2)                                     0.15                   0.5625
+    (1, 4)                                     0.15625       0.6696428571428571
+    (1, 3)                         0.16666666666666666                     0.75
+    (2, 4)                         0.24444444444444444       0.9166666666666666
+    (1, 2)                          0.1111111111111111                      1.0
+    (2, 2)                          0.2222222222222222                      1.0
+    (2, 3)                         0.23333333333333334                      1.0
+    (3, 3)                         0.26666666666666666                      1.0
     """
     if not isinstance(cluster_sizes, list):
         cluster_sizes = cluster_sizes.tolist()
-    cluster_sizes = sorted(cluster_sizes)
     total = sum(cluster_sizes)
+    if total < 3:
+        return np.nan
     n_singletons = int(math.sqrt(total))
-    s_single_cluster = total ** 2 - n_singletons
+    total2 = total ** 2
+    cluster_sizes = sorted(cluster_sizes)
     memo = {}
+    memo1 = {}
 
     def g(x):
-        # What if new elements are introduced?
-        # How robust is the Gini coefficient of our clustering to new elements
-        # comprising singletons and members of the largest cluster?
-        # We consider two scenarios:
-        # 1. The new elements are all singletons
-        # 2. The new elements are all members of the largest cluster
-        # We then compute (1-gini(scenario_1))*(1-gini(scenario_2))
         t = tuple(x)
         if t in memo:
             return memo[t]
-        a, b = gini_coefficient(n_singletons * [1] + x, return_factors=True)
-        c, d = gini_coefficient(x[:-1] + [x[-1] + s_single_cluster],
-                                return_factors=True)
-        bd = b * d
-        memo[t] = bd - a * d - b * c + a * c, bd
+        t1 = tuple([1] * n_singletons + x)
+        if t1 in memo1:
+            a, b = memo1[t1]
+        else:
+            a, b = memo1[t1] = gini_coefficient(t1, return_factors=True)
+        t1 = tuple(x + [total2])
+        if t1 in memo1:
+            c, d = memo1[t1]
+        else:
+            c, d = memo1[t1] = gini_coefficient(t1, return_factors=True)
+        memo[t] = (b - a) * (d - c), d * b
         return memo[t]
 
     num, den = g(cluster_sizes)
@@ -572,7 +553,7 @@ def cluster_neatness(cluster_sizes, normalize=False):
     if not normalize:
         return num / den
 
-    maximal = (0.0, 1.0)
+    maximal = (0, 1)
     for k in range(total, 0, -1):
         mu = total // k
         add1 = total - mu * k
@@ -580,9 +561,9 @@ def cluster_neatness(cluster_sizes, normalize=False):
         if num1 * maximal[1] > maximal[0] * den1:
             maximal = (num1, den1)
 
-    if maximal[0]:
-        return num * maximal[1] / (den * maximal[0])
-    return num / den
+    if not maximal[0]:
+        return 1.0
+    return num * maximal[1] / (den * maximal[0])
 
 
 def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
@@ -607,14 +588,18 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
             sil = silhouette_score(matrix, clusters)
     except ValueError:
         sil = np.nan
-    nice = cluster_niceness(counts)
-    neat = cluster_neatness(counts)
-    gini = gini_coefficient(counts, False)
-    ratio = len(counts) / sum(counts)
-    out = {"Silhouette": sil, "Niceness": nice, "GiniRobust": neat,
-           "GiniCoeff": gini, "K/N": ratio,
-           "sample": sample, "clusters": clusters,
+    out = {"Silhouette": sil,
+           "Niceness": niceness(counts),
+           "Neatness": neatness(counts),
+           "GiniCoeff": gini_coefficient(counts),
+           "len(X)/sum(X)": len(counts) / sum(counts),
+           "max(X)/sum(X)": max(counts) / sum(counts),
+           "sample": sample,
+           "clusters": clusters,
            "counts_dict": counts_dict}
+    if not precomputed:
+        out.update({"DaviesBouldin": davies_bouldin_score(matrix, clusters),
+                    "CalinskiHarabasz": calinski_harabasz_score(matrix, clusters)})
     if actual is not None:
         if actual.dtype == float:
             cr = correlation_ratio(clusters, actual)
@@ -640,27 +625,67 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
                                for key in results[0].keys() if key not in
                                ["sample", "clusters", "counts_dict"]})
 
-    # find the best parameters based on Gini Robustness (aka Neatness)
-    best = np.argmax(df_results.GiniRobust)
+    if actual.dtype != float:
+        max_muti = np.max(df_results.AdjMutualInfo)
+        max_rand = np.max(df_results.AdjRandIndex)
+        amax_gini = np.argmax(df_results.GiniCoeff)
+        amin_stu0 = np.argmin(df_results["max(X)/sum(X)"] + df_results["len(X)/sum(X)"])
+        amin_stu1 = np.argmin(df_results["max(X)/sum(X)"] * df_results["len(X)/sum(X)"])
+        amin_stu2 = np.argmin(1/(1/df_results["max(X)/sum(X)"]+1/df_results["len(X)/sum(X)"]))
+        amin_stu3 = np.argmin(np.maximum(df_results["max(X)/sum(X)"], df_results["len(X)/sum(X)"]))
+        amax_nice = np.argmax(df_results.Niceness)
+        amax_neat = np.argmax(df_results.Neatness)
+        amax_silh = np.argmax(df_results.Silhouette)
+        print("Best possible MutualInfo score: ", max_muti)
+        print("Best possible RandIndex score:  ", max_rand)
+        print("GiniCoeff MutualInfo loss: ", df_results.AdjMutualInfo.iloc[amax_gini] - max_muti)
+        print("GiniCoeff RandIndex loss:  ", df_results.AdjRandIndex.iloc[amax_gini] - max_rand)
+        print("Stupid0 MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amin_stu0] - max_muti)
+        print("Stupid0 RandIndex loss:    ", df_results.AdjRandIndex.iloc[amin_stu0] - max_rand)
+        print("Stupid1 MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amin_stu1] - max_muti)
+        print("Stupid1 RandIndex loss:    ", df_results.AdjRandIndex.iloc[amin_stu1] - max_rand)
+        print("Stupid2 MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amin_stu2] - max_muti)
+        print("Stupid2 RandIndex loss:    ", df_results.AdjRandIndex.iloc[amin_stu2] - max_rand)
+        print("Stupid3 MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amin_stu3] - max_muti)
+        print("Stupid3 RandIndex loss:    ", df_results.AdjRandIndex.iloc[amin_stu3] - max_rand)
+        print("Niceness MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_nice] - max_muti)
+        print("Niceness RandIndex loss:   ", df_results.AdjRandIndex.iloc[amax_nice] - max_rand)
+        print("Neatness MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_neat] - max_muti)
+        print("Neatness RandIndex loss:   ", df_results.AdjRandIndex.iloc[amax_neat] - max_rand)
+        print("Silhouette MutualInfo loss:", df_results.AdjMutualInfo.iloc[amax_silh] - max_muti)
+        print("Silhouette RandIndex loss: ", df_results.AdjRandIndex.iloc[amax_silh] - max_rand)
+        if not precomputed:
+            amax_dabo = np.argmax(df_results.DaviesBouldin)
+            amax_caha = np.argmax(df_results.CalinskiHarabasz)
+            print("DaviesBouldin MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amax_dabo] - max_muti)
+            print("DaviesBouldin RandIndex loss:    ", df_results.AdjRandIndex.iloc[amax_dabo] - max_rand)
+            print("CalinskiHarabasz MutualInfo loss:", df_results.AdjMutualInfo.iloc[amax_caha] - max_muti)
+            print("CalinskiHarabasz RandIndex loss: ", df_results.AdjRandIndex.iloc[amax_caha] - max_rand)
+        best = np.argmax(df_results.AdjRandIndex + df_results.AdjMutualInfo)
+    else:
+        best = np.argmin((df_results.CorrRatio - 0.5).abs())
     best_params = results[best]
 
     # assign clusters
     df["cluster"] = best_params["clusters"]
     df.cluster = df.cluster.astype(str)
 
-    # normalize Gini Robustness for plotting
-    neatest = df_results.GiniRobust.max()
-    df_results.GiniRobust /= neatest
+    plt.figure(figsize=(10, 10))
 
     # plot param vs. metrics
     var = [z["sample"][param] for z in results]
-    for col in df_results.columns:
-        if col in ["counts_dict", "clusters"]:
-            continue
-        plt.plot(var, df_results[col])
+    legend = ["Niceness", "Neatness", "GiniCoeff", "len(X)/sum(X)", "max(X)/sum(X)"] + (
+        (["CorrRatio"] if actual.dtype == float else
+         ["AdjRandIndex", "AdjMutualInfo", ] + (
+             ["DaviesBouldin", "CalinskiHarabasz"] if not precomputed else [])
+         ) + ["Silhouette"] if actual is not None else [])
+    for col in legend:
+        if col in ["CalinskiHarabasz", "DaviesBouldin"]:
+            plt.plot(var, df_results[col] / df_results[col].max())
+        else:
+            plt.plot(var, df_results[col])
+
     plt.axvline(best_params["sample"][param], c="black", ls="--")
-    legend = ["Silhouette", "Niceness", "GiniRobust (%.6f)" % neatest, "GiniCoeff", "K/N"] + (
-        (["CorrRatio"] if actual.dtype == float else ["AdjRandIndex", "AdjMutualInfo"]) if actual is not None else [])
     plt.legend(legend)
     plt.show()
 
@@ -674,6 +699,9 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
     del best_params["clusters"]
     print(best_params)
 
+    return np.min((df_results.CorrRatio - 0.5).abs()) if actual.dtype == float \
+        else np.max(df_results.AdjRandIndex + df_results.AdjMutualInfo)
+
 
 def optimize_dbscan(df, actual=None, factor=10.0, offset=0.0, n_iter=1000,
                     use_mp=True, min_samples=1, precomputed=False, **kwargs):
@@ -686,10 +714,10 @@ def optimize_dbscan(df, actual=None, factor=10.0, offset=0.0, n_iter=1000,
 
     samples = [{"eps": offset + factor * z / n_iter, "min_samples": min_samples}
                for z in range(1, n_iter + 1)]
-    sample_params(df, matrix, actual, DBSCAN, samples, "eps", n_iter, precomputed,
-                  use_mp)
+    ni = sample_params(df, matrix, actual, DBSCAN, samples, "eps", n_iter, precomputed,
+                       use_mp)
 
-    return df
+    return df, ni
 
 
 def optimize_gm(df, actual=None, n_iter=10, use_mp=True):
