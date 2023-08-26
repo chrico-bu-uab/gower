@@ -500,52 +500,38 @@ def neatness(cluster_sizes, normalize=True):
     (5,)                                           0.0                      0.0
     (1, 1, 1, 1, 1, 1)                             0.0                      0.0
     (6,)                                           0.0                      0.0
-    (1, 1, 1, 1, 2)               0.011111111111111112     0.041666666666666664
-    (1, 1, 1, 2)                                  0.02      0.08571428571428572
-    (1, 1, 1, 3)                                  0.04                     0.15
-    (1, 1, 2)                     0.041666666666666664                   0.1875
-    (1, 1, 2, 2)                   0.05333333333333334                      0.2
-    (1, 1, 3)                                    0.075      0.32142857142857145
-    (1, 1, 4)                                      0.1                    0.375
-    (1, 5)                                         0.1                    0.375
-    (1, 2, 2)                                      0.1      0.42857142857142855
-    (1, 2, 3)                      0.11666666666666667                   0.4375
-    (2, 2, 2)                                     0.15                   0.5625
-    (1, 4)                                     0.15625       0.6696428571428571
-    (1, 3)                         0.16666666666666666                     0.75
-    (2, 4)                         0.24444444444444444       0.9166666666666666
-    (1, 2)                          0.1111111111111111                      1.0
-    (2, 2)                          0.2222222222222222                      1.0
-    (2, 3)                         0.23333333333333334                      1.0
-    (3, 3)                         0.26666666666666666                      1.0
+    (1, 1, 1, 1, 2)               0.008253968253968255      0.07738095238095238
+    (1, 1, 1, 2)                               0.01375      0.17142857142857143
+    (1, 1, 1, 3)                                  0.02                   0.1875
+    (1, 5)                        0.022222222222222223      0.20833333333333334
+    (1, 1, 2)                                    0.025                    0.225
+    (1, 1, 4)                                    0.028                   0.2625
+    (1, 1, 2, 2)                                 0.032                      0.3
+    (1, 1, 3)                                     0.03      0.37402597402597404
+    (1, 3)                        0.041666666666666664                    0.375
+    (1, 4)                                     0.03125      0.38961038961038963
+    (1, 2, 3)                      0.04666666666666667                   0.4375
+    (2, 4)                         0.06111111111111111       0.5729166666666666
+    (1, 2, 2)                                    0.055       0.6857142857142857
+    (2, 2, 2)                                    0.096                      0.9
+    (1, 2)                        0.037037037037037035                      1.0
+    (2, 3)                         0.08020833333333334                      1.0
+    (3, 3)                         0.10666666666666667                      1.0
+    (2, 2)                          0.1111111111111111                      1.0
     """
     if not isinstance(cluster_sizes, list):
         cluster_sizes = cluster_sizes.tolist()
     total = sum(cluster_sizes)
     if total < 3:
         return np.nan
-    n_singletons = int(math.sqrt(total))
-    total2 = total ** 2
+    singletons = [1] * int(math.sqrt(total))
+    large_cluster = [total ** 2]
     cluster_sizes = sorted(cluster_sizes)
-    memo = {}
-    memo1 = {}
 
     def g(x):
-        t = tuple(x)
-        if t in memo:
-            return memo[t]
-        t1 = tuple([1] * n_singletons + x)
-        if t1 in memo1:
-            a, b = memo1[t1]
-        else:
-            a, b = memo1[t1] = gini_coefficient(t1, return_factors=True)
-        t1 = tuple(x + [total2])
-        if t1 in memo1:
-            c, d = memo1[t1]
-        else:
-            c, d = memo1[t1] = gini_coefficient(t1, return_factors=True)
-        memo[t] = (b - a) * (d - c), d * b
-        return memo[t]
+        a, b = gini_coefficient(x + singletons, return_factors=True)
+        c, d = gini_coefficient(x + large_cluster, return_factors=True)
+        return (b - a) * (d - c), d * b
 
     num, den = g(cluster_sizes)
     if not den:
@@ -554,7 +540,7 @@ def neatness(cluster_sizes, normalize=True):
         return num / den
 
     maximal = (0, 1)
-    for k in range(total, 0, -1):
+    for k in range(total - 1, 1, -1):
         mu = total // k
         add1 = total - mu * k
         num1, den1 = g([mu] * (k - add1) + [mu + 1] * add1)
@@ -629,38 +615,34 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
         max_muti = np.max(df_results.AdjMutualInfo)
         max_rand = np.max(df_results.AdjRandIndex)
         amax_gini = np.argmax(df_results.GiniCoeff)
-        amin_stu0 = np.argmin(df_results["max(X)/sum(X)"] + df_results["len(X)/sum(X)"])
-        amin_stu1 = np.argmin(df_results["max(X)/sum(X)"] * df_results["len(X)/sum(X)"])
-        amin_stu2 = np.argmin(1/(1/df_results["max(X)/sum(X)"]+1/df_results["len(X)/sum(X)"]))
-        amin_stu3 = np.argmin(np.maximum(df_results["max(X)/sum(X)"], df_results["len(X)/sum(X)"]))
+        amin_stu0 = np.argmin(np.maximum(df_results["max(X)/sum(X)"], df_results["len(X)/sum(X)"]))
+        amin_stu1 = np.argmin(df_results["max(X)/sum(X)"] + df_results["len(X)/sum(X)"])
         amax_nice = np.argmax(df_results.Niceness)
         amax_neat = np.argmax(df_results.Neatness)
         amax_silh = np.argmax(df_results.Silhouette)
-        print("Best possible MutualInfo score: ", max_muti)
-        print("Best possible RandIndex score:  ", max_rand)
-        print("GiniCoeff MutualInfo loss: ", df_results.AdjMutualInfo.iloc[amax_gini] - max_muti)
-        print("GiniCoeff RandIndex loss:  ", df_results.AdjRandIndex.iloc[amax_gini] - max_rand)
-        print("Stupid0 MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amin_stu0] - max_muti)
-        print("Stupid0 RandIndex loss:    ", df_results.AdjRandIndex.iloc[amin_stu0] - max_rand)
-        print("Stupid1 MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amin_stu1] - max_muti)
-        print("Stupid1 RandIndex loss:    ", df_results.AdjRandIndex.iloc[amin_stu1] - max_rand)
-        print("Stupid2 MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amin_stu2] - max_muti)
-        print("Stupid2 RandIndex loss:    ", df_results.AdjRandIndex.iloc[amin_stu2] - max_rand)
-        print("Stupid3 MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amin_stu3] - max_muti)
-        print("Stupid3 RandIndex loss:    ", df_results.AdjRandIndex.iloc[amin_stu3] - max_rand)
-        print("Niceness MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_nice] - max_muti)
-        print("Niceness RandIndex loss:   ", df_results.AdjRandIndex.iloc[amax_nice] - max_rand)
-        print("Neatness MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_neat] - max_muti)
-        print("Neatness RandIndex loss:   ", df_results.AdjRandIndex.iloc[amax_neat] - max_rand)
-        print("Silhouette MutualInfo loss:", df_results.AdjMutualInfo.iloc[amax_silh] - max_muti)
-        print("Silhouette RandIndex loss: ", df_results.AdjRandIndex.iloc[amax_silh] - max_rand)
+        print("Best possible MutualInfo SCORE: ", max_muti)
+        print("Best possible RandIndex  SCORE: ", max_rand)
+        print("New metrics:")
+        print("Max(K, L)     MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amin_stu0] - max_muti)
+        print("Max(K, L)     RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amin_stu0] - max_rand)
+        print("K + L         MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amin_stu1] - max_muti)
+        print("K + L         RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amin_stu1] - max_rand)
+        print("Niceness      MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_nice] - max_muti)
+        print("Niceness      RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amax_nice] - max_rand)
+        print("Neatness      MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_neat] - max_muti)
+        print("Neatness      RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amax_neat] - max_rand)
+        print("Old metrics:")
+        print("GiniCoeff     MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_gini] - max_muti)
+        print("GiniCoeff     RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amax_gini] - max_rand)
+        print("Silhouette    MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_silh] - max_muti)
+        print("Silhouette    RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amax_silh] - max_rand)
         if not precomputed:
             amax_dabo = np.argmax(df_results.DaviesBouldin)
             amax_caha = np.argmax(df_results.CalinskiHarabasz)
-            print("DaviesBouldin MutualInfo loss:   ", df_results.AdjMutualInfo.iloc[amax_dabo] - max_muti)
-            print("DaviesBouldin RandIndex loss:    ", df_results.AdjRandIndex.iloc[amax_dabo] - max_rand)
+            print("DaviesBouldin    MutualInfo loss:", df_results.AdjMutualInfo.iloc[amax_dabo] - max_muti)
+            print("DaviesBouldin    RandIndex  loss:", df_results.AdjRandIndex.iloc[amax_dabo] - max_rand)
             print("CalinskiHarabasz MutualInfo loss:", df_results.AdjMutualInfo.iloc[amax_caha] - max_muti)
-            print("CalinskiHarabasz RandIndex loss: ", df_results.AdjRandIndex.iloc[amax_caha] - max_rand)
+            print("CalinskiHarabasz RandIndex  loss:", df_results.AdjRandIndex.iloc[amax_caha] - max_rand)
         best = np.argmax(df_results.AdjRandIndex + df_results.AdjMutualInfo)
     else:
         best = np.argmin((df_results.CorrRatio - 0.5).abs())
@@ -703,7 +685,7 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
         else np.max(df_results.AdjRandIndex + df_results.AdjMutualInfo)
 
 
-def optimize_dbscan(df, actual=None, factor=10.0, offset=0.0, n_iter=1000,
+def optimize_dbscan(df, actual=None, factor=0.25, offset=0.0, n_iter=1000,
                     use_mp=True, min_samples=1, precomputed=False, **kwargs):
     df = df.copy()
 
