@@ -597,7 +597,9 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
 
 
 def sample_params(df, matrix, actual, method, samples, param, n_iter, precomputed,
-                  use_mp):
+                  use_mp, title):
+    if actual is None:
+        actual = np.zeros_like(df.index)
     # do grid search to get best parameters
     if use_mp:
         results = process_map(partial(evaluate_clusters, matrix=matrix,
@@ -620,29 +622,33 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
         amax_nice = np.argmax(df_results.Niceness)
         amax_neat = np.argmax(df_results.Neatness)
         amax_silh = np.argmax(df_results.Silhouette)
-        print("Best possible MutualInfo SCORE: ", max_muti)
-        print("Best possible RandIndex  SCORE: ", max_rand)
-        print("New metrics:")
-        print("Max(K, L)     MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amin_stu0] - max_muti)
-        print("Max(K, L)     RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amin_stu0] - max_rand)
-        print("K + L         MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amin_stu1] - max_muti)
-        print("K + L         RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amin_stu1] - max_rand)
-        print("Niceness      MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_nice] - max_muti)
-        print("Niceness      RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amax_nice] - max_rand)
-        print("Neatness      MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_neat] - max_muti)
-        print("Neatness      RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amax_neat] - max_rand)
-        print("Old metrics:")
-        print("GiniCoeff     MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_gini] - max_muti)
-        print("GiniCoeff     RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amax_gini] - max_rand)
-        print("Silhouette    MutualInfo loss:  ", df_results.AdjMutualInfo.iloc[amax_silh] - max_muti)
-        print("Silhouette    RandIndex  loss:  ", df_results.AdjRandIndex.iloc[amax_silh] - max_rand)
         if not precomputed:
             amax_dabo = np.argmax(df_results.DaviesBouldin)
             amax_caha = np.argmax(df_results.CalinskiHarabasz)
-            print("DaviesBouldin    MutualInfo loss:", df_results.AdjMutualInfo.iloc[amax_dabo] - max_muti)
-            print("DaviesBouldin    RandIndex  loss:", df_results.AdjRandIndex.iloc[amax_dabo] - max_rand)
-            print("CalinskiHarabasz MutualInfo loss:", df_results.AdjMutualInfo.iloc[amax_caha] - max_muti)
-            print("CalinskiHarabasz RandIndex  loss:", df_results.AdjRandIndex.iloc[amax_caha] - max_rand)
+        results_table = pd.DataFrame({
+            'Metric': ['Max(K, L)', 'K + L', 'Niceness', 'Neatness', 'GiniCoeff', 'Silhouette',
+                       'DaviesBouldin' if not precomputed else None, 'CalinskiHarabasz' if not precomputed else None],
+            'MutualInfo loss': [df_results.AdjMutualInfo.iloc[amin_stu0] - max_muti,
+                                df_results.AdjMutualInfo.iloc[amin_stu1] - max_muti,
+                                df_results.AdjMutualInfo.iloc[amax_nice] - max_muti,
+                                df_results.AdjMutualInfo.iloc[amax_neat] - max_muti,
+                                df_results.AdjMutualInfo.iloc[amax_gini] - max_muti,
+                                df_results.AdjMutualInfo.iloc[amax_silh] - max_muti,
+                                df_results.AdjMutualInfo.iloc[amax_dabo] - max_muti if not precomputed else None,
+                                df_results.AdjMutualInfo.iloc[amax_caha] - max_muti if not precomputed else None],
+            'RandIndex loss': [df_results.AdjRandIndex.iloc[amin_stu0] - max_rand,
+                               df_results.AdjRandIndex.iloc[amin_stu1] - max_rand,
+                               df_results.AdjRandIndex.iloc[amax_nice] - max_rand,
+                               df_results.AdjRandIndex.iloc[amax_neat] - max_rand,
+                               df_results.AdjRandIndex.iloc[amax_gini] - max_rand,
+                               df_results.AdjRandIndex.iloc[amax_silh] - max_rand,
+                               df_results.AdjRandIndex.iloc[amax_dabo] - max_rand if not precomputed else None,
+                               df_results.AdjRandIndex.iloc[amax_caha] - max_rand if not precomputed else None]
+        })
+
+        # Remove rows with None values
+        results_table.dropna(inplace=True)
+        results_table.set_index('Metric', inplace=True)
         best = np.argmax(df_results.AdjRandIndex + df_results.AdjMutualInfo)
     else:
         best = np.argmin((df_results.CorrRatio - 0.5).abs())
@@ -669,6 +675,7 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
 
     plt.axvline(best_params["sample"][param], c="black", ls="--")
     plt.legend(legend)
+    plt.title(title)
     plt.show()
 
     # display corr
@@ -681,11 +688,12 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
     del best_params["clusters"]
     print(best_params)
 
-    return np.min((df_results.CorrRatio - 0.5).abs()) if actual.dtype == float \
-        else np.max(df_results.AdjRandIndex + df_results.AdjMutualInfo)
+    out = (np.min((df_results.CorrRatio - 0.5).abs()) if actual.dtype == float
+           else np.max(df_results.AdjRandIndex + df_results.AdjMutualInfo))
+    return (out, results_table) if actual.dtype != float else out
 
 
-def optimize_dbscan(df, actual=None, factor=0.25, offset=0.0, n_iter=1000,
+def optimize_dbscan(df, title, actual=None, factor=0.25, offset=0.0, n_iter=1000,
                     use_mp=True, min_samples=1, precomputed=False, **kwargs):
     df = df.copy()
 
@@ -696,26 +704,26 @@ def optimize_dbscan(df, actual=None, factor=0.25, offset=0.0, n_iter=1000,
 
     samples = [{"eps": offset + factor * z / n_iter, "min_samples": min_samples}
                for z in range(1, n_iter + 1)]
-    ni = sample_params(df, matrix, actual, DBSCAN, samples, "eps", n_iter, precomputed,
-                       use_mp)
+    res = sample_params(df, matrix, actual, DBSCAN, samples, "eps", n_iter, precomputed,
+                        use_mp, title)
 
-    return df, ni
+    return df, res
 
 
-def optimize_gm(df, actual=None, n_iter=10, use_mp=True):
+def optimize_gm(df, title, actual=None, n_iter=10, use_mp=True):
     df = df.copy()
 
     matrix = df.to_numpy()
 
     samples = [{"n_components": z, "random_state": 42}
                for z in range(2, n_iter + 2)]
-    sample_params(df, matrix, actual, GaussianMixture, samples, "n_components",
-                  n_iter, False, use_mp)
+    res = sample_params(df, matrix, actual, GaussianMixture, samples, "n_components",
+                        n_iter, False, use_mp, title)
 
-    return df
+    return df, res
 
 
-def optimize_agglo(df, actual=None, n_iter=10, use_mp=True, precomputed=False,
+def optimize_agglo(df, title, actual=None, n_iter=10, use_mp=True, precomputed=False,
                    **kwargs):
     df = df.copy()
 
@@ -726,13 +734,13 @@ def optimize_agglo(df, actual=None, n_iter=10, use_mp=True, precomputed=False,
 
     samples = [{"n_clusters": z, "linkage": "average"}
                for z in range(2, n_iter + 2)]
-    sample_params(df, matrix, actual, AgglomerativeClustering, samples, "n_clusters",
-                  n_iter, precomputed, use_mp)
+    res = sample_params(df, matrix, actual, AgglomerativeClustering, samples, "n_clusters",
+                        n_iter, precomputed, use_mp, title)
 
-    return df
+    return df, res
 
 
-def optimize_cluster_optics_dbscan(df, actual=None, factor=10.0, offset=0.0,
+def optimize_cluster_optics_dbscan(df, title, actual=None, factor=10.0, offset=0.0,
                                    n_iter=1000, use_mp=True, min_samples=1,
                                    metric="minkowski", **kwargs):
     df = df.copy()
@@ -747,7 +755,7 @@ def optimize_cluster_optics_dbscan(df, actual=None, factor=10.0, offset=0.0,
 
     samples = [{"eps": offset + factor * z / n_iter}
                for z in range(1, n_iter + 1)]
-    sample_params(df, matrix, actual, cluster_optics_dbscan, samples, "eps",
-                  n_iter, clust, use_mp)
+    res = sample_params(df, matrix, actual, cluster_optics_dbscan, samples, "eps",
+                        n_iter, clust, use_mp, title)
 
-    return df
+    return df, res
