@@ -597,7 +597,7 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
 
 
 def sample_params(df, matrix, actual, method, samples, param, n_iter, precomputed,
-                  use_mp, title):
+                  use_mp, title, param_name, plot_corr=False):
     if actual is None:
         actual = np.zeros_like(df.index)
     # do grid search to get best parameters
@@ -649,6 +649,8 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
         # Remove rows with None values
         results_table.dropna(inplace=True)
         results_table.set_index('Metric', inplace=True)
+        results_table.max_muti = max_muti
+        results_table.max_rand = max_rand
         best = np.argmax(df_results.AdjRandIndex + df_results.AdjMutualInfo)
     else:
         best = np.argmin((df_results.CorrRatio - 0.5).abs())
@@ -676,11 +678,12 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
     plt.axvline(best_params["sample"][param], c="black", ls="--")
     plt.legend(legend)
     plt.title(title)
+    plt.xlabel(param_name)
     plt.show()
 
     # display corr
     n_cols = df.shape[1]
-    if n_cols < 20:
+    if plot_corr and n_cols < 20:
         corr = associations(df, nom_nom_assoc="theil",
                             figsize=(n_cols, n_cols))["corr"]
 
@@ -705,7 +708,7 @@ def optimize_dbscan(df, title, actual=None, factor=0.25, offset=0.0, n_iter=1000
     samples = [{"eps": offset + factor * z / n_iter, "min_samples": min_samples}
                for z in range(1, n_iter + 1)]
     res = sample_params(df, matrix, actual, DBSCAN, samples, "eps", n_iter, precomputed,
-                        use_mp, title)
+                        use_mp, title, "eps")
 
     return df, res
 
@@ -718,7 +721,7 @@ def optimize_gm(df, title, actual=None, n_iter=10, use_mp=True):
     samples = [{"n_components": z, "random_state": 42}
                for z in range(2, n_iter + 2)]
     res = sample_params(df, matrix, actual, GaussianMixture, samples, "n_components",
-                        n_iter, False, use_mp, title)
+                        n_iter, False, use_mp, title, "n_components")
 
     return df, res
 
@@ -735,7 +738,7 @@ def optimize_agglo(df, title, actual=None, n_iter=10, use_mp=True, precomputed=F
     samples = [{"n_clusters": z, "linkage": "average"}
                for z in range(2, n_iter + 2)]
     res = sample_params(df, matrix, actual, AgglomerativeClustering, samples, "n_clusters",
-                        n_iter, precomputed, use_mp, title)
+                        n_iter, precomputed, use_mp, title, "n_clusters")
 
     return df, res
 
@@ -756,6 +759,6 @@ def optimize_cluster_optics_dbscan(df, title, actual=None, factor=10.0, offset=0
     samples = [{"eps": offset + factor * z / n_iter}
                for z in range(1, n_iter + 1)]
     res = sample_params(df, matrix, actual, cluster_optics_dbscan, samples, "eps",
-                        n_iter, clust, use_mp, title)
+                        n_iter, clust, use_mp, title, "eps")
 
     return df, res
