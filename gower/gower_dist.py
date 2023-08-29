@@ -51,7 +51,6 @@ def get_num_weight(x):
     It represents the "resolution" of the column in terms of perplexity.
     Binary variables get the lowest weight of 1 due to no perplexity.
     """
-    assert 0 <= np.nanmin(x) <= np.nanmax(x) <= 1, x
     x = np.array([i for i in x if i is not None])
     x = x[~np.isnan(x)] * 1.0
     x = np.diff(np.sort(x))  # a pmf of ordered categories
@@ -336,7 +335,7 @@ def niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     >>> from gower.gower_dist import *
     >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
     >>> pairs = [(str(tuple(x)), niceness(x)) for x in C]
-    >>> for k, v1 in sorted(pairs, key=lambda x: x[1]): print(f"{k:50}{v1:25}")
+    >>> for k, v in sorted(pairs, key=lambda x: x[1]): print(f"{k:50}{v:25}")
     (0,)                                                                    nan
     (1,)                                                                    nan
     (1, 1)                                                                  nan
@@ -390,15 +389,9 @@ def niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
         n = x.sum()
         n_2 = n ** 2
 
-        # compute factors
-        gi0 = n_2 - np.square(x).sum()
-        dof0 = n - len(x)
-        # T = transpose_counts(x)
-        # gi1 = n_2 - np.square(T).sum()
-        # dof1 = n - len(T)
-        #
-        # return max(gi0 * dof0, gi1 * dof1)
-        return gi0 * dof0
+        gi = n_2 - np.square(x).sum()
+        dof = n - len(x)
+        return gi * dof
 
     total = sum(cluster_sizes)
     if total < 2:
@@ -584,8 +577,15 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
            "clusters": clusters,
            "counts_dict": counts_dict}
     if not precomputed:
-        out.update({"DaviesBouldin": davies_bouldin_score(matrix, clusters),
-                    "CalinskiHarabasz": calinski_harabasz_score(matrix, clusters)})
+        try:
+            db = davies_bouldin_score(matrix, clusters)
+        except ValueError:
+            db = np.nan
+        try:
+            ch = calinski_harabasz_score(matrix, clusters)
+        except ValueError:
+            ch = np.nan
+        out.update({"DaviesBouldin": db, "CalinskiHarabasz": ch})
     if actual is not None:
         if actual.dtype == float:
             cr = correlation_ratio(clusters, actual)
