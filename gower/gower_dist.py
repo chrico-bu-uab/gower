@@ -541,7 +541,6 @@ def neatness(cluster_sizes, normalize=False):
         return np.nan
     large_cluster = [total ** 4]
     singletons = total * [1]
-    cluster_sizes = sorted(cluster_sizes)
 
     def g(x):
         a, b = gini_coefficient(large_cluster + total * x,
