@@ -6,7 +6,22 @@ scikit-learn~=1.2.2
 dython~=0.7.3
 pytest~=7.2.2
 setuptools~=68.0.0
-matplotlib~=3.7.1
-pmlb
+matplotlib==3.7.2
+
+pmlb~=1.0.1
+openml~=0.14.1
+clustering-benchmarks~=1.1.1
 
 gower~=0.1.2
+
+hdbscan~=0.8.29
+kneed~=0.8.5
+Cython~=0.29.34
+optuna~=3.2.0
+catboost~=1.1.1
+imblearn~=0.0
+lightgbm~=3.3.5
+tabpfn~=0.1.8
+xgboost~=1.7.5
+natsort~=8.4.0
+genieclust~=1.1.4

@@ -10,10 +10,12 @@ from hdbscan import HDBSCAN
 from kneed import KneeLocator
 from scipy.sparse import issparse
 from scipy.stats import norm
-from sklearn.cluster import AgglomerativeClustering, DBSCAN, OPTICS, cluster_optics_dbscan, \
-    KMeans, SpectralClustering, Birch, AffinityPropagation, MeanShift, estimate_bandwidth
-from sklearn.metrics import adjusted_mutual_info_score, adjusted_rand_score, silhouette_score, davies_bouldin_score, \
-    calinski_harabasz_score
+from sklearn.cluster import (
+    DBSCAN, AgglomerativeClustering, OPTICS, cluster_optics_dbscan,
+    KMeans, SpectralClustering, Birch, AffinityPropagation, MeanShift)
+from sklearn.metrics import (
+    adjusted_mutual_info_score, adjusted_rand_score, silhouette_score,
+    davies_bouldin_score, calinski_harabasz_score)
 from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
@@ -999,5 +1001,17 @@ def optimize_affinity(df, title, actual=None, n_iter=1000, use_mp=True, precompu
     samples = [{"damping": 0.5 + 0.5 * z / n_iter, "random_state": 42} for z in range(n_iter)]
     res = sample_params(df, matrix, actual, AffinityPropagation, samples, "damping",
                         n_iter, precomputed, use_mp, title)
+
+    return df, res
+
+
+def optimize_meanshift(df, title, actual=None, n_iter=1000, use_mp=True):
+    df = df.copy()
+
+    matrix = df.to_numpy()
+
+    samples = [{"bandwidth": 0.5 + 0.5 * z / n_iter, "random_state": 42} for z in range(n_iter)]
+    res = sample_params(df, matrix, actual, MeanShift, samples, "bandwidth",
+                        n_iter, use_mp, title)
 
     return df, res
