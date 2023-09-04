@@ -429,7 +429,7 @@ def niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
 
 
 def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
-                     normalize=True, return_factors=False):
+                     normalize=True, return_factors=False, repeat=False):
     """
     Examples:
     ---------
@@ -440,7 +440,7 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
     >>> for k, v1, v2 in sorted(pairs, key=lambda x: (x[2], x[1])):
     ...     print(f"{k:25}{v1:25}{v2:25}")
     (0,)                                           0.0                      0.0
-    (1,)                                           0.0                      0.0
+    (1,)                                           0.0                     -0.0
     (1, 1)                                         0.0                      0.0
     (2,)                                           0.0                      0.0
     (1, 1, 1)                                      0.0                      0.0
@@ -470,19 +470,22 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
     (1, 1, 4)                       0.3333333333333333                      1.0
     (1, 5)                          0.3333333333333333                      1.0
     """
+    cluster_sizes = sorted(cluster_sizes)
+    raw = sum(cluster_sizes)
+    raw4 = raw ** 4
+    total = raw ** 2 + raw4 if repeat else raw
+    n_singletons = int(-0.5 + math.sqrt(0.25 + total))  # solve n(n+1)=total
 
-    def f(x):
-        x = sorted(x)
-        n = len(x)
-        s = sum(x)
-        d = n * s
-        G = sum(xi * (n - i) for i, xi in enumerate(x))
-        return d + s - 2 * G, d, s
+    def f(x, r=n_singletons, final=total - n_singletons):
+        s = r * (r - 1) // 2
+        n = len(x) * r + (final > 1)
+        d = n * total
+        G = sum(xi * (r * (n - i * r) - s) for i, xi in enumerate(x)) + final
+        return d + total - 2 * G, d
 
-    num, den, total = f(cluster_sizes)
+    num, den = f(cluster_sizes, raw if repeat else 1, raw4 if repeat else 0)
     if normalize:
-        n_singletons = int(-0.5 + math.sqrt(0.25 + total))  # solve n(n+1)=total
-        num1, den1, _ = f([1] * n_singletons + [total - n_singletons])
+        num1, den1 = f([1])
         if num1:
             if return_factors:
                 return num * den1, den * num1
@@ -494,13 +497,13 @@ def gini_coefficient(cluster_sizes: Union[np.ndarray[int], list[int]],
     return num / den if den else 0.0
 
 
-def neatness(cluster_sizes, normalize=False):
+def neatness(cluster_sizes, normalize=True):
     """
     Examples:
     ---------
     >>> from gower.gower_dist import *
     >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
-    >>> pairs = [(str(tuple(x)), neatness(x), neatness(x, True)) for x in C]
+    >>> pairs = [(str(tuple(x)), neatness(x, False), neatness(x)) for x in C]
     >>> for k, v1, v2 in sorted(pairs, key=lambda x: (x[2], x[1])):
     ...     print(f"{k:25}{v1:25}{v2:25}")
     (0,)                                           nan                      nan
@@ -539,12 +542,10 @@ def neatness(cluster_sizes, normalize=False):
     total = sum(cluster_sizes)
     if total < 3:
         return np.nan
-    large_cluster = [total ** 4]
     singletons = total * [1]
 
     def g(x):
-        a, b = gini_coefficient(large_cluster + total * x,
-                                return_factors=True)
+        a, b = gini_coefficient(x, return_factors=True, repeat=True)
         c, d = gini_coefficient([total * i for i in x] + singletons,
                                 return_factors=True)
         return (b - a) * (d - c), d * b
@@ -778,7 +779,7 @@ def sample_params(df, matrix, actual, method, samples, param, n_iter, precompute
             (
                 [
                     "Niceness",
-                    f"Neatness {df_results.Neatness.max()}",
+                    "Neatness",
                     "GiniCoeff",
                     "len(X)/sum(X)",
                     "max(X)/sum(X)",
