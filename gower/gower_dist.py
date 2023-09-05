@@ -687,12 +687,7 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     elif precomputed is not None:
         clusters = method(**{**sample, precomputed: "precomputed"}).fit_predict(matrix)
     else:
-        matrix -= matrix.min()
-        matrix /= matrix.max()
-        matrix.fillna(1, inplace=True)
-        weight = matrix.apply(get_num_weight)
-        matrix *= weight / weight.sum()
-        clusters = method(**sample).fit_predict(matrix.to_numpy())
+        clusters = method(**sample).fit_predict(matrix)
     clusters = fix_classes(clusters)
     _, counts = np.unique(clusters, return_counts=True)
     counts_dict = dict(zip(*np.unique(counts, return_counts=True)))
@@ -774,6 +769,14 @@ def sample_params(
 ):
     if actual is None:
         actual = np.zeros_like(df.index)
+
+    if isinstance(matrix, pd.DataFrame):
+        matrix -= matrix.min()
+        matrix /= matrix.max()
+        matrix.fillna(1, inplace=True)
+        weight = matrix.apply(get_num_weight)
+        matrix *= weight / weight.sum()
+        matrix = matrix.to_numpy()
     # do grid search to get best parameters
     if use_mp:
         results = process_map(
