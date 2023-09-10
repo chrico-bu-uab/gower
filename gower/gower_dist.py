@@ -645,7 +645,7 @@ def δ(ck, cl):
     values = np.ones([len(ck), len(cl)])
     for i in range(len(ck)):
         for j in range(len(cl)):
-            values[i, j] = np.linalg.norm(ck[i] - cl[j], ord=1)
+            values[i, j] = np.linalg.norm(ck[i] - cl[j])
     return np.min(values)
 
 
@@ -653,7 +653,7 @@ def Δ(ci):
     values = np.zeros([len(ci), len(ci)])
     for i in range(len(ci)):
         for j in range(len(ci)):
-            values[i, j] = np.linalg.norm(ci[i] - ci[j], ord=1)
+            values[i, j] = np.linalg.norm(ci[i] - ci[j])
     return np.max(values)
 
 
@@ -662,7 +662,7 @@ def dunn(k_list):
     Δs = np.zeros([len(k_list), 1])
     l_range = list(range(len(k_list)))
     for k in l_range:
-        for l in l_range[:k] + l_range[k + 1 :]:
+        for l in l_range[:k] + l_range[k + 1:]:
             δs[k, l] = δ(k_list[k], k_list[l])
             Δs[k] = Δ(k_list[k])
     return np.min(δs) / np.max(Δs) if np.max(Δs) else 0
@@ -752,6 +752,15 @@ def get_knee(X, k, **kwargs):
     return kn.knee_y
 
 
+def simple_preprocess(matrix):
+    matrix -= matrix.min()
+    matrix /= matrix.max()
+    matrix.fillna(1, inplace=True)
+    weight = matrix.apply(get_num_weight)
+    matrix *= weight / weight.sum()
+    return matrix.to_numpy()
+
+
 def sample_params(
     df,
     matrix,
@@ -771,12 +780,7 @@ def sample_params(
         actual = np.zeros_like(df.index)
 
     if isinstance(matrix, pd.DataFrame):
-        matrix -= matrix.min()
-        matrix /= matrix.max()
-        matrix.fillna(1, inplace=True)
-        weight = matrix.apply(get_num_weight)
-        matrix *= weight / weight.sum()
-        matrix = matrix.to_numpy()
+        matrix = simple_preprocess(matrix)
     # do grid search to get best parameters
     if use_mp:
         results = process_map(
@@ -819,10 +823,6 @@ def sample_params(
         amax_nice = np.argmax(df_results.Niceness)
         amax_neat = np.argmax(df_results.Neatness)
         amax_silh = np.argmax(df_results.Silhouette)
-        amax_hybrid = np.argmax(
-            (df_results.Niceness + df_results.Silhouette)
-            * (df_results.Neatness + df_results.Silhouette)
-        )
         if knee is not None:
             n, d = df.shape
             k = min(2 * d, n) - 1
@@ -836,8 +836,6 @@ def sample_params(
             amax_dabo = np.argmax(df_results.DaviesBouldin)
             amax_caha = np.argmax(df_results.CalinskiHarabasz)
             amax_dunn = np.argmax(df_results.Dunn)
-        s = pd.Series([pd.Series([amin_stu0, amin_stu1, amax_nice]).median(), amax_neat, amax_hybrid])
-        ensemble = int(s.mode().mean())
         results_table = pd.DataFrame(
             {
                 "Metric": [
@@ -851,8 +849,6 @@ def sample_params(
                     "DaviesBouldin" if precomputed is None else None,
                     "CalinskiHarabasz" if precomputed is None else None,
                     "Dunn" if precomputed is None else None,
-                    "Hybrid",
-                    "Ensemble",
                 ],
                 "MutualInfo loss": [
                     df_results.AdjMutualInfo.iloc[amin_stu0] - max_muti,
@@ -873,8 +869,6 @@ def sample_params(
                     df_results.AdjMutualInfo.iloc[amax_dunn] - max_muti
                     if precomputed is None
                     else None,
-                    df_results.AdjMutualInfo.iloc[amax_hybrid] - max_muti,
-                    df_results.AdjMutualInfo.iloc[ensemble] - max_muti,
                 ],
                 "RandIndex loss": [
                     df_results.AdjRandIndex.iloc[amin_stu0] - max_rand,
@@ -895,8 +889,6 @@ def sample_params(
                     df_results.AdjRandIndex.iloc[amax_dunn] - max_rand
                     if precomputed is None
                     else None,
-                    df_results.AdjRandIndex.iloc[amax_hybrid] - max_rand,
-                    df_results.AdjRandIndex.iloc[ensemble] - max_rand,
                 ],
                 "Combined loss": [
                     df_results.Combined.iloc[amin_stu0] - max_combo,
@@ -917,8 +909,6 @@ def sample_params(
                     df_results.Combined.iloc[amax_dunn] - max_combo
                     if precomputed is None
                     else None,
-                    df_results.Combined.iloc[amax_hybrid] - max_combo,
-                    df_results.Combined.iloc[ensemble] - max_combo,
                 ],
             }
         )
@@ -982,11 +972,10 @@ def sample_params(
             + ["Maximizing"]
         )
         + (["Knee"] if knee is not None else [])
-        + (["Hybrid", "Ensemble"] if actual.dtype != float else [])
     )
     colors = plt.get_cmap("Set3").colors
     for i, col in enumerate(
-        legend[: -1 - (knee is not None) - 2 * (actual.dtype != float)]
+        legend[: -1 - (knee is not None)]
     ):
         if " " in col:
             plt.plot(
@@ -999,23 +988,22 @@ def sample_params(
 
     plt.axvline(best_params["sample"][param], c="k", ls="--")
     if knee is not None:
-        plt.axvline(var[np.argmin(np.abs(var - knee))], c="r", ls=":")
-    if actual.dtype != float:
-        plt.axvline(var[amax_hybrid], c="b", ls=":")
-        plt.axvline(var[ensemble], c="g", ls=":")
+        plt.axvline(var[np.argmin(np.abs(var - knee))], c="g", ls=":")
     plt.legend(legend)
     plt.title(title)
     plt.xlabel(param)
     plt.show()
 
-    n_cols = df.shape[1]
-    if plot_corr and n_cols < 20:
+    if plot_corr:
         # display corr
+        n_cols = df.shape[1]
         associations(df, nom_nom_assoc="theil", figsize=(n_cols, n_cols))
 
     # print results
     del best_params["clusters"]
     print(best_params)
+    print(actual.value_counts())
+    print(df_results.Combined.describe())
 
     out = (
         np.min((df_results.CorrRatio - 0.5).abs())
@@ -1029,7 +1017,7 @@ def optimize_dbscan(
     df,
     title,
     actual=None,
-    factor=1.0,
+    factor=0.5,
     offset=0.0,
     n_iter=100,
     min_samples=1,
@@ -1068,12 +1056,22 @@ def optimize_dbscan(
     return df, res
 
 
-def optimize_gm(df, title, actual=None, n_iter=10, use_mp=True):
+def optimize_gmm(df, title, actual=None, n_iter=10, use_mp=True):
     df = df.copy()
+
+    if len(df) > 5000:
+        covariance_type = "spherical"
+    elif len(df) > 2000:
+        covariance_type = "diag"
+    else:
+        covariance_type = "full"
 
     matrix = df
 
-    samples = [{"n_components": z, "random_state": 42} for z in range(2, n_iter + 2)]
+    samples = [
+        {"n_components": z, "random_state": 42, "covariance_type": covariance_type}
+        for z in range(2, n_iter + 2)
+    ]
     res = sample_params(
         df,
         matrix,
@@ -1094,7 +1092,7 @@ def optimize_agglo(
     df,
     title,
     actual=None,
-    factor=1.0,
+    factor=0.5,
     offset=0.0,
     n_iter=100,
     linkage="average",
@@ -1136,11 +1134,11 @@ def optimize_agglo(
     return df, res
 
 
-def optimize_cluster_optics_dbscan(
+def optimize_optics(
     df,
     title,
     actual=None,
-    factor=10.0,
+    factor=0.5,
     offset=0.0,
     n_iter=100,
     use_mp=True,
@@ -1213,18 +1211,14 @@ def optimize_hdbscan(
     else:
         matrix = df
 
-    min_cluster_size = int(math.ceil(math.sqrt(len(matrix))) / 2)
-    samples = [
-        {"min_samples": z, "min_cluster_size": min_cluster_size}
-        for z in range(1, n_iter + 1)
-    ]
+    samples = [{"min_cluster_size": z, "min_samples": 1} for z in range(2, n_iter + 1)]
     res = sample_params(
         df,
         matrix,
         actual,
         HDBSCAN,
         samples,
-        "min_samples",
+        "min_cluster_size",
         n_iter,
         precomputed,
         use_mp,
@@ -1262,21 +1256,21 @@ def optimize_spectral(
     return df, res
 
 
-def optimize_birch(df, title, actual=None, n_iter=10, use_mp=True):
+def optimize_birch(df, title, actual=None, n_iter=100, use_mp=True):
     df = df.copy()
 
     matrix = df
 
-    samples = [{"n_clusters": z} for z in range(2, n_iter + 2)]
+    samples = [{"threshold": z / n_iter, "n_clusters": None} for z in range(1, n_iter + 1)]
     res = sample_params(
-        df, matrix, actual, Birch, samples, "n_clusters", n_iter, None, use_mp, title
+        df, matrix, actual, Birch, samples, "threshold", n_iter, None, use_mp, title
     )
 
     return df, res
 
 
 def optimize_affinity(
-    df, title, actual=None, n_iter=1000, use_mp=True, precomputed=None, **kwargs
+    df, title, actual=None, n_iter=100, use_mp=True, precomputed=None, **kwargs
 ):
     df = df.copy()
 
@@ -1305,7 +1299,7 @@ def optimize_affinity(
     return df, res
 
 
-def optimize_meanshift(df, title, actual=None, n_iter=1000, use_mp=True):
+def optimize_meanshift(df, title, actual=None, n_iter=100, use_mp=True):
     df = df.copy()
 
     matrix = df
@@ -1314,7 +1308,7 @@ def optimize_meanshift(df, title, actual=None, n_iter=1000, use_mp=True):
         {"bandwidth": 0.5 + 0.5 * z / n_iter, "random_state": 42} for z in range(n_iter)
     ]
     res = sample_params(
-        df, matrix, actual, MeanShift, samples, "bandwidth", n_iter, use_mp, title
+        df, matrix, actual, MeanShift, samples, "bandwidth", n_iter, None, use_mp, title
     )
 
     return df, res
