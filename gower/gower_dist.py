@@ -804,12 +804,13 @@ def sample_params(
         }
     )
 
-    if actual is None or actual.dtype != float:
-        if actual is not None:
-            gin_actual = gini_coefficient(np.unique(actual, return_counts=True)[1].tolist())
-            df_results["Combined"] = (
-                1 - gin_actual
-            ) * df_results.AdjRandIndex + gin_actual * df_results.AdjMutualInfo
+    if actual is None:
+        best = np.argmax(df_results.Neatness)
+    elif actual.dtype != float:
+        gin_actual = gini_coefficient(np.unique(actual, return_counts=True)[1].tolist())
+        df_results["Combined"] = (
+            1 - gin_actual
+        ) * df_results.AdjRandIndex + gin_actual * df_results.AdjMutualInfo
         max_muti = np.max(df_results.AdjMutualInfo)
         max_rand = np.max(df_results.AdjRandIndex)
         max_combo = np.max(df_results.Combined)
@@ -910,16 +911,12 @@ def sample_params(
                 ],
             }
         )
-
         results_table = results_table.dropna()
         results_table.set_index("Metric", inplace=True)
         results_table.max_muti = max_muti
         results_table.max_rand = max_rand
         results_table.max_combo = max_combo
-        if actual is None:
-            best = np.argmax(df_results.Neatness)
-        else:
-            best = np.argmax(df_results.Combined)
+        best = np.argmax(df_results.Combined)
     else:
         best = np.argmin((df_results.CorrRatio - 0.5).abs())
     best_params = results[best]
