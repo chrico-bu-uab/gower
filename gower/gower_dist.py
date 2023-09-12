@@ -1009,7 +1009,7 @@ def sample_params(
         if actual.dtype == float
         else np.max(df_results.Combined)
     )
-    return (out, results_table) if actual.dtype != float else out
+    return (out, results_table) if actual is not None and actual.dtype != float else out
 
 
 def optimize_dbscan(
