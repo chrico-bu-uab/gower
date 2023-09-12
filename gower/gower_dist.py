@@ -1000,7 +1000,8 @@ def sample_params(
     # print results
     del best_params["clusters"]
     print(best_params)
-    print(actual.value_counts())
+    if actual is not None:
+        print(actual.value_counts())
     print(df_results.Combined.describe())
 
     out = (
