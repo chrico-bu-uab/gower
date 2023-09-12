@@ -1002,7 +1002,7 @@ def sample_params(
     print(best_params)
     if actual is not None:
         print(actual.value_counts())
-    print(df_results.Combined.describe())
+        print(df_results.Combined.max())
 
     out = (
         np.min((df_results.CorrRatio - 0.5).abs())
