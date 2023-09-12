@@ -1008,7 +1008,7 @@ def sample_params(
         np.min((df_results.CorrRatio - 0.5).abs())
         if actual.dtype == float
         else np.max(df_results.Combined)
-    )
+    ) if actual is not None else np.max(df_results.Neatness)
     return (out, results_table) if actual is not None and actual.dtype != float else out
 
 
