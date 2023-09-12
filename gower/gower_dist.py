@@ -669,7 +669,7 @@ def dunn(k_list):
 
 
 def inverse_sigmoid(x):
-    return math.log((x + 1e-15) / (1 - x + 1e-15))
+    return np.log(x / (1 - x))
 
 
 def rescaled_silhouette(*args, **kwargs):
