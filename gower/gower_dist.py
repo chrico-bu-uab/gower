@@ -925,6 +925,7 @@ def sample_params(
     df["cluster"] = best_params["clusters"]
     df.cluster = df.cluster.astype(str)
 
+    plt.style.use("dark_background")
     plt.figure(figsize=(10, 10))
 
     # plot param vs. metrics
