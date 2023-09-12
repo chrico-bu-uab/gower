@@ -985,7 +985,7 @@ def sample_params(
         else:
             plt.plot(var, df_results[col], c=colors[i])
 
-    plt.axvline(best_params["sample"][param], c="k", ls="--")
+    plt.axvline(best_params["sample"][param], c="w", ls="--")
     if knee is not None:
         plt.axvline(var[np.argmin(np.abs(var - knee))], c="g", ls=":")
     plt.legend(legend)
