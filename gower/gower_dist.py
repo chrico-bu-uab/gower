@@ -776,9 +776,6 @@ def sample_params(
     plot_corr=False,
     **kwargs
 ):
-    if actual is None:
-        actual = np.zeros_like(df.index)
-
     if isinstance(matrix, pd.DataFrame):
         matrix = simple_preprocess(matrix)
     # do grid search to get best parameters
@@ -807,11 +804,12 @@ def sample_params(
         }
     )
 
-    if actual.dtype != float:
-        gin_actual = gini_coefficient(np.unique(actual, return_counts=True)[1].tolist())
-        df_results["Combined"] = (
-            1 - gin_actual
-        ) * df_results.AdjRandIndex + gin_actual * df_results.AdjMutualInfo
+    if actual is None or actual.dtype != float:
+        if actual is not None:
+            gin_actual = gini_coefficient(np.unique(actual, return_counts=True)[1].tolist())
+            df_results["Combined"] = (
+                1 - gin_actual
+            ) * df_results.AdjRandIndex + gin_actual * df_results.AdjMutualInfo
         max_muti = np.max(df_results.AdjMutualInfo)
         max_rand = np.max(df_results.AdjRandIndex)
         max_combo = np.max(df_results.Combined)
@@ -918,7 +916,10 @@ def sample_params(
         results_table.max_muti = max_muti
         results_table.max_rand = max_rand
         results_table.max_combo = max_combo
-        best = np.argmax(df_results.Combined)
+        if actual is None:
+            best = np.argmax(df_results.Neatness)
+        else:
+            best = np.argmax(df_results.Combined)
     else:
         best = np.argmin((df_results.CorrRatio - 0.5).abs())
     best_params = results[best]
