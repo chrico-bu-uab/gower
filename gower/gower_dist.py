@@ -730,6 +730,7 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
         else:
             out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
             out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, clusters)
+            out["Combined"] = (1 - out["GiniCoeff"]) * out["AdjRandIndex"] + out["GiniCoeff"] * out["AdjMutualInfo"]
     return out
 
 
@@ -811,10 +812,6 @@ def sample_params(
     if actual is None:
         best = np.argmax(df_results.Neatness)
     elif actual.dtype != float:
-        gin_actual = gini_coefficient(np.unique(actual, return_counts=True)[1].tolist())
-        df_results["Combined"] = (
-            1 - gin_actual
-        ) * df_results.AdjRandIndex + gin_actual * df_results.AdjMutualInfo
         max_muti = np.max(df_results.AdjMutualInfo)
         max_rand = np.max(df_results.AdjRandIndex)
         max_combo = np.max(df_results.Combined)
@@ -854,62 +851,62 @@ def sample_params(
                     "Dunn" if precomputed is None else None,
                 ],
                 "MutualInfo loss": [
-                    df_results.AdjMutualInfo.iloc[amin_stu0] - max_muti,
-                    df_results.AdjMutualInfo.iloc[amin_stu1] - max_muti,
-                    df_results.AdjMutualInfo.iloc[amax_nice] - max_muti,
-                    df_results.AdjMutualInfo.iloc[amax_neat] - max_muti,
-                    df_results.AdjMutualInfo.iloc[amax_gini] - max_muti,
-                    df_results.AdjMutualInfo.iloc[amax_silh] - max_muti,
-                    df_results.AdjMutualInfo.iloc[knee_x] - max_muti
+                    df_results.AdjMutualInfo.iloc[amin_stu0],
+                    df_results.AdjMutualInfo.iloc[amin_stu1],
+                    df_results.AdjMutualInfo.iloc[amax_nice],
+                    df_results.AdjMutualInfo.iloc[amax_neat],
+                    df_results.AdjMutualInfo.iloc[amax_gini],
+                    df_results.AdjMutualInfo.iloc[amax_silh],
+                    df_results.AdjMutualInfo.iloc[knee_x]
                     if knee is not None
                     else None,
-                    df_results.AdjMutualInfo.iloc[amax_dabo] - max_muti
+                    df_results.AdjMutualInfo.iloc[amax_dabo]
                     if precomputed is None
                     else None,
-                    df_results.AdjMutualInfo.iloc[amax_caha] - max_muti
+                    df_results.AdjMutualInfo.iloc[amax_caha]
                     if precomputed is None
                     else None,
-                    df_results.AdjMutualInfo.iloc[amax_dunn] - max_muti
+                    df_results.AdjMutualInfo.iloc[amax_dunn]
                     if precomputed is None
                     else None,
                 ],
                 "RandIndex loss": [
-                    df_results.AdjRandIndex.iloc[amin_stu0] - max_rand,
-                    df_results.AdjRandIndex.iloc[amin_stu1] - max_rand,
-                    df_results.AdjRandIndex.iloc[amax_nice] - max_rand,
-                    df_results.AdjRandIndex.iloc[amax_neat] - max_rand,
-                    df_results.AdjRandIndex.iloc[amax_gini] - max_rand,
-                    df_results.AdjRandIndex.iloc[amax_silh] - max_rand,
-                    df_results.AdjRandIndex.iloc[knee_x] - max_rand
+                    df_results.AdjRandIndex.iloc[amin_stu0],
+                    df_results.AdjRandIndex.iloc[amin_stu1],
+                    df_results.AdjRandIndex.iloc[amax_nice],
+                    df_results.AdjRandIndex.iloc[amax_neat],
+                    df_results.AdjRandIndex.iloc[amax_gini],
+                    df_results.AdjRandIndex.iloc[amax_silh],
+                    df_results.AdjRandIndex.iloc[knee_x]
                     if knee is not None
                     else None,
-                    df_results.AdjRandIndex.iloc[amax_dabo] - max_rand
+                    df_results.AdjRandIndex.iloc[amax_dabo]
                     if precomputed is None
                     else None,
-                    df_results.AdjRandIndex.iloc[amax_caha] - max_rand
+                    df_results.AdjRandIndex.iloc[amax_caha]
                     if precomputed is None
                     else None,
-                    df_results.AdjRandIndex.iloc[amax_dunn] - max_rand
+                    df_results.AdjRandIndex.iloc[amax_dunn]
                     if precomputed is None
                     else None,
                 ],
                 "Combined loss": [
-                    df_results.Combined.iloc[amin_stu0] - max_combo,
-                    df_results.Combined.iloc[amin_stu1] - max_combo,
-                    df_results.Combined.iloc[amax_nice] - max_combo,
-                    df_results.Combined.iloc[amax_neat] - max_combo,
-                    df_results.Combined.iloc[amax_gini] - max_combo,
-                    df_results.Combined.iloc[amax_silh] - max_combo,
-                    df_results.Combined.iloc[knee_x] - max_combo
+                    df_results.Combined.iloc[amin_stu0],
+                    df_results.Combined.iloc[amin_stu1],
+                    df_results.Combined.iloc[amax_nice],
+                    df_results.Combined.iloc[amax_neat],
+                    df_results.Combined.iloc[amax_gini],
+                    df_results.Combined.iloc[amax_silh],
+                    df_results.Combined.iloc[knee_x]
                     if knee is not None
                     else None,
-                    df_results.Combined.iloc[amax_dabo] - max_combo
+                    df_results.Combined.iloc[amax_dabo]
                     if precomputed is None
                     else None,
-                    df_results.Combined.iloc[amax_caha] - max_combo
+                    df_results.Combined.iloc[amax_caha]
                     if precomputed is None
                     else None,
-                    df_results.Combined.iloc[amax_dunn] - max_combo
+                    df_results.Combined.iloc[amax_dunn]
                     if precomputed is None
                     else None,
                 ],
@@ -959,7 +956,7 @@ def sample_params(
                                     [
                                         f"DaviesBouldin {df_results.DaviesBouldin.max()}",
                                         f"CalinskiHarabasz {df_results.CalinskiHarabasz.max()}",
-                                        f"Dunn {df_results.Dunn.max()}",
+                                        f"Dunn",
                                     ]
                                     if precomputed is None
                                     else []
