@@ -662,7 +662,7 @@ def dunn(k_list):
     Δs = np.zeros([len(k_list), 1])
     l_range = list(range(len(k_list)))
     for k in l_range:
-        for l in l_range[:k] + l_range[k + 1:]:
+        for l in l_range[:k] + l_range[k + 1 :]:
             δs[k, l] = δ(k_list[k], k_list[l])
             Δs[k] = Δ(k_list[k])
     return np.min(δs) / np.max(Δs) if np.max(Δs) else 0
@@ -730,7 +730,9 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
         else:
             out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
             out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, clusters)
-            out["Combined"] = (1 - out["GiniCoeff"]) * out["AdjRandIndex"] + out["GiniCoeff"] * out["AdjMutualInfo"]
+            out["Combined"] = (1 - out["GiniCoeff"]) * out["AdjRandIndex"] + out[
+                "GiniCoeff"
+            ] * out["AdjMutualInfo"]
     return out
 
 
@@ -762,8 +764,7 @@ def simple_preprocess(df):
     weight = matrix.apply(get_num_weight)
     matrix *= weight / weight.sum()
     # return adjusted numeric features plus cat features
-    return pd.concat([matrix, df.select_dtypes(exclude=[np.number])],
-                     axis=1).to_numpy()
+    return pd.concat([matrix, df.select_dtypes(exclude=[np.number])], axis=1).to_numpy()
 
 
 def sample_params(
@@ -857,9 +858,7 @@ def sample_params(
                     df_results.AdjMutualInfo.iloc[amax_neat],
                     df_results.AdjMutualInfo.iloc[amax_gini],
                     df_results.AdjMutualInfo.iloc[amax_silh],
-                    df_results.AdjMutualInfo.iloc[knee_x]
-                    if knee is not None
-                    else None,
+                    df_results.AdjMutualInfo.iloc[knee_x] if knee is not None else None,
                     df_results.AdjMutualInfo.iloc[amax_dabo]
                     if precomputed is None
                     else None,
@@ -877,9 +876,7 @@ def sample_params(
                     df_results.AdjRandIndex.iloc[amax_neat],
                     df_results.AdjRandIndex.iloc[amax_gini],
                     df_results.AdjRandIndex.iloc[amax_silh],
-                    df_results.AdjRandIndex.iloc[knee_x]
-                    if knee is not None
-                    else None,
+                    df_results.AdjRandIndex.iloc[knee_x] if knee is not None else None,
                     df_results.AdjRandIndex.iloc[amax_dabo]
                     if precomputed is None
                     else None,
@@ -897,9 +894,7 @@ def sample_params(
                     df_results.Combined.iloc[amax_neat],
                     df_results.Combined.iloc[amax_gini],
                     df_results.Combined.iloc[amax_silh],
-                    df_results.Combined.iloc[knee_x]
-                    if knee is not None
-                    else None,
+                    df_results.Combined.iloc[knee_x] if knee is not None else None,
                     df_results.Combined.iloc[amax_dabo]
                     if precomputed is None
                     else None,
@@ -933,50 +928,45 @@ def sample_params(
     var = np.array([z["sample"][param] for z in results])
     legend = (
         (
-            (
-                [
-                    "Niceness",
-                    "Neatness",
-                    "GiniCoeff",
-                    "len(X)/sum(X)",
-                    "max(X)/sum(X)",
-                ]
-                + (
+            [
+                "Niceness",
+                "Neatness",
+                "GiniCoeff",
+                "len(X)/sum(X)",
+                "max(X)/sum(X)",
+            ]
+            + (
+                (
                     (
-                        (
-                            ["CorrRatio"]
-                            if actual.dtype == float
-                            else (
+                        ["CorrRatio"]
+                        if actual.dtype == float
+                        else (
+                            [
+                                "AdjRandIndex",
+                                "AdjMutualInfo",
+                                "Combined",
+                            ]
+                            + (
                                 [
-                                    "AdjRandIndex",
-                                    "AdjMutualInfo",
-                                    "Combined",
+                                    f"DaviesBouldin {df_results.DaviesBouldin.max()}",
+                                    f"CalinskiHarabasz {df_results.CalinskiHarabasz.max()}",
+                                    "Dunn",
                                 ]
-                                + (
-                                    [
-                                        f"DaviesBouldin {df_results.DaviesBouldin.max()}",
-                                        f"CalinskiHarabasz {df_results.CalinskiHarabasz.max()}",
-                                        f"Dunn",
-                                    ]
-                                    if precomputed is None
-                                    else []
-                                )
+                                if precomputed is None
+                                else []
                             )
                         )
-                        + ["Silhouette"]
                     )
-                    if actual is not None
-                    else []
+                    + ["Silhouette"]
                 )
+                if actual is not None
+                else []
             )
-            + ["Maximizing"]
         )
-        + (["Knee"] if knee is not None else [])
-    )
+        + ["Maximizing"]
+    ) + (["Knee"] if knee is not None else [])
     colors = plt.get_cmap("Set3").colors
-    for i, col in enumerate(
-        legend[: -1 - (knee is not None)]
-    ):
+    for i, col in enumerate(legend[: -1 - (knee is not None)]):
         if " " in col:
             plt.plot(
                 var,
@@ -1007,10 +997,14 @@ def sample_params(
         print(df_results.Combined.max())
 
     out = (
-        np.min((df_results.CorrRatio - 0.5).abs())
-        if actual.dtype == float
-        else np.max(df_results.Combined)
-    ) if actual is not None else np.max(df_results.Neatness)
+        (
+            np.min((df_results.CorrRatio - 0.5).abs())
+            if actual.dtype == float
+            else np.max(df_results.Combined)
+        )
+        if actual is not None
+        else np.max(df_results.Neatness)
+    )
     return (out, results_table) if actual is not None and actual.dtype != float else out
 
 
@@ -1262,7 +1256,9 @@ def optimize_birch(df, title, actual=None, n_iter=100, use_mp=True):
 
     matrix = df
 
-    samples = [{"threshold": z / n_iter, "n_clusters": None} for z in range(1, n_iter + 1)]
+    samples = [
+        {"threshold": z / n_iter, "n_clusters": None} for z in range(1, n_iter + 1)
+    ]
     res = sample_params(
         df, matrix, actual, Birch, samples, "threshold", n_iter, None, use_mp, title
     )
