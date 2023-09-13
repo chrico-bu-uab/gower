@@ -752,13 +752,16 @@ def get_knee(X, k, **kwargs):
     return kn.knee_y
 
 
-def simple_preprocess(matrix):
+def simple_preprocess(df):
+    # just numeric features
+    matrix = df.select_dtypes(include=[np.number])
     matrix -= matrix.min()
     matrix /= matrix.max()
     matrix.fillna(1, inplace=True)
     weight = matrix.apply(get_num_weight)
     matrix *= weight / weight.sum()
-    return matrix.to_numpy()
+    # return adjusted numeric features plus cat features
+    return pd.concat([matrix, df.select_dtypes(exclude=[np.number])], axis=1)
 
 
 def sample_params(
