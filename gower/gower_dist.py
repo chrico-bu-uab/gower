@@ -28,7 +28,7 @@ from sklearn.metrics import (
     davies_bouldin_score,
     calinski_harabasz_score,
 )
-from sklearn.mixture import GaussianMixture
+from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -1072,6 +1072,38 @@ def optimize_gmm(df, title, actual=None, n_iter=10, use_mp=True):
         matrix,
         actual,
         GaussianMixture,
+        samples,
+        "n_components",
+        n_iter,
+        None,
+        use_mp,
+        title,
+    )
+
+    return df, res
+
+
+def optimize_bgmm(df, title, actual=None, n_iter=10, use_mp=True):
+    df = df.copy()
+
+    if len(df) > 5000:
+        covariance_type = "spherical"
+    elif len(df) > 2000:
+        covariance_type = "diag"
+    else:
+        covariance_type = "full"
+
+    matrix = df
+
+    samples = [
+        {"n_components": z, "random_state": 42, "covariance_type": covariance_type}
+        for z in range(2, n_iter + 2)
+    ]
+    res = sample_params(
+        df,
+        matrix,
+        actual,
+        BayesianGaussianMixture,
         samples,
         "n_components",
         n_iter,
