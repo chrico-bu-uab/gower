@@ -730,9 +730,8 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
         else:
             out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
             out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, clusters)
-            out["Combined"] = (1 - out["GiniCoeff"]) * out["AdjRandIndex"] + out[
-                "GiniCoeff"
-            ] * out["AdjMutualInfo"]
+            gini_actual = gini_coefficient(np.unique(actual, return_counts=True)[1])
+            out["Combined"] = (1 - gini_actual) * out["AdjRandIndex"] + gini_actual * out["AdjMutualInfo"]
     return out
 
 
@@ -851,7 +850,7 @@ def sample_params(
                     "CalinskiHarabasz" if precomputed is None else None,
                     "Dunn" if precomputed is None else None,
                 ],
-                "MutualInfo loss": [
+                "MutualInfo": [
                     df_results.AdjMutualInfo.iloc[amin_stu0],
                     df_results.AdjMutualInfo.iloc[amin_stu1],
                     df_results.AdjMutualInfo.iloc[amax_nice],
@@ -869,7 +868,7 @@ def sample_params(
                     if precomputed is None
                     else None,
                 ],
-                "RandIndex loss": [
+                "RandIndex": [
                     df_results.AdjRandIndex.iloc[amin_stu0],
                     df_results.AdjRandIndex.iloc[amin_stu1],
                     df_results.AdjRandIndex.iloc[amax_nice],
@@ -887,7 +886,7 @@ def sample_params(
                     if precomputed is None
                     else None,
                 ],
-                "Combined loss": [
+                "Combined": [
                     df_results.Combined.iloc[amin_stu0],
                     df_results.Combined.iloc[amin_stu1],
                     df_results.Combined.iloc[amax_nice],
