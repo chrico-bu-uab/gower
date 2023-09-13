@@ -761,7 +761,8 @@ def simple_preprocess(df):
     weight = matrix.apply(get_num_weight)
     matrix *= weight / weight.sum()
     # return adjusted numeric features plus cat features
-    return pd.concat([matrix, df.select_dtypes(exclude=[np.number])], axis=1)
+    return pd.concat([matrix, df.select_dtypes(exclude=[np.number])],
+                     axis=1).to_numpy()
 
 
 def sample_params(
