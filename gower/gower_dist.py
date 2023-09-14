@@ -6,21 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from dython.nominal import associations, correlation_ratio
-from hdbscan import HDBSCAN
 from kneed import KneeLocator
 from scipy.sparse import issparse
 from scipy.stats import norm
-from sklearn.cluster import (
-    DBSCAN,
-    AgglomerativeClustering,
-    OPTICS,
-    cluster_optics_dbscan,
-    KMeans,
-    SpectralClustering,
-    Birch,
-    AffinityPropagation,
-    MeanShift,
-)
+from sklearn.cluster import *
 from sklearn.metrics import (
     adjusted_mutual_info_score,
     adjusted_rand_score,
@@ -672,8 +661,12 @@ def inverse_sigmoid(x):
     return np.log(x / (1 - x))
 
 
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
 def rescaled_silhouette(*args, **kwargs):
-    return 0.5 * inverse_sigmoid(silhouette_score(*args, **kwargs) / 2 + 0.5)
+    return sigmoid(inverse_sigmoid(silhouette_score(*args, **kwargs) / 2 + 0.5) / 2)
 
 
 def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
@@ -731,7 +724,9 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
             out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
             out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, clusters)
             gini_actual = gini_coefficient(np.unique(actual, return_counts=True)[1])
-            out["Combined"] = (1 - gini_actual) * out["AdjRandIndex"] + gini_actual * out["AdjMutualInfo"]
+            out["Combined"] = (1 - gini_actual) * out[
+                "AdjRandIndex"
+            ] + gini_actual * out["AdjMutualInfo"]
     return out
 
 
@@ -1053,9 +1048,9 @@ def optimize_dbscan(
 def optimize_gmm(df, title, actual=None, n_iter=10, use_mp=True):
     df = df.copy()
 
-    if len(df) > 5000:
+    if len(df) > 10000:
         covariance_type = "spherical"
-    elif len(df) > 2000:
+    elif len(df) > 1000:
         covariance_type = "diag"
     else:
         covariance_type = "full"
@@ -1332,9 +1327,7 @@ def optimize_meanshift(df, title, actual=None, n_iter=100, use_mp=True):
 
     matrix = df
 
-    samples = [
-        {"bandwidth": 0.5 + 0.5 * z / n_iter, "random_state": 42} for z in range(n_iter)
-    ]
+    samples = [{"bandwidth": 0.5 + 0.5 * z / n_iter} for z in range(n_iter)]
     res = sample_params(
         df, matrix, actual, MeanShift, samples, "bandwidth", n_iter, None, use_mp, title
     )
