@@ -254,9 +254,8 @@ def gower_get(
     sum_cat = np.multiply(feature_weight_cat, sij_cat).sum(axis=1)
 
     # circular columns
-    sij_cir = np.minimum(
-        np.absolute(xi_cir - xj_cir), periods - np.absolute(xi_cir - xj_cir)
-    ) / (periods // 2)
+    sij_cir = np.absolute(xi_cir - xj_cir)
+    sij_cir = np.minimum(sij_cir, periods - sij_cir) / (periods // 2)
     sum_cir = np.multiply(feature_weight_cir, sij_cir).sum(axis=1)
 
     # numerical columns
