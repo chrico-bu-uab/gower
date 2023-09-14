@@ -701,6 +701,7 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed, df
         "clusters": clusters,
         "counts_dict": counts_dict,
     }
+    df = pd.get_dummies(df)
     try:
         db = davies_bouldin_score(df, clusters)
     except ValueError:
@@ -893,15 +894,15 @@ def sample_params(
     legend = (
         (
             [
-                "Niceness",
-                "Neatness",
-                "GiniCoeff",
-                "len(X)/sum(X)",
-                "max(X)/sum(X)",
                 f"DaviesBouldin {df_results.DaviesBouldin.max()}",
                 f"CalinskiHarabasz {df_results.CalinskiHarabasz.max()}",
                 # f"Dunn {df_results.Dunn.max()}",
                 "Silhouette",
+                "GiniCoeff",
+                "len(X)/sum(X)",
+                "max(X)/sum(X)",
+                "Niceness",
+                "Neatness",
             ]
             + (
                 (
