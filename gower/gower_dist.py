@@ -668,7 +668,7 @@ def rescaled_silhouette(*args, **kwargs):
     return sigmoid(inverse_sigmoid(silhouette_score(*args, **kwargs) / 2 + 0.5) / 2)
 
 
-def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
+def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed, df):
     if method == cluster_optics_dbscan:
         clusters = cluster_optics_dbscan(
             reachability=precomputed.reachability_,
@@ -701,20 +701,19 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
         "clusters": clusters,
         "counts_dict": counts_dict,
     }
-    if precomputed is None:
-        try:
-            db = davies_bouldin_score(matrix, clusters)
-        except ValueError:
-            db = np.nan
-        try:
-            ch = calinski_harabasz_score(matrix, clusters)
-        except ValueError:
-            ch = np.nan
-        try:
-            di = dunn([matrix[clusters == i] for i in np.unique(clusters)])
-        except ValueError:
-            di = np.nan
-        out |= {"DaviesBouldin": db, "CalinskiHarabasz": ch, "Dunn": di}
+    try:
+        db = davies_bouldin_score(df, clusters)
+    except ValueError:
+        db = np.nan
+    try:
+        ch = calinski_harabasz_score(df, clusters)
+    except ValueError:
+        ch = np.nan
+    # try:
+    #     di = dunn([df.to_numpy()[clusters == i] for i in np.unique(clusters)])
+    # except ValueError:
+    #     di = np.nan
+    out |= {"DaviesBouldin": db, "CalinskiHarabasz": ch}  # , "Dunn": di}
     if actual is not None:
         if actual.dtype == float:
             cr = correlation_ratio(clusters, actual)
@@ -760,6 +759,13 @@ def simple_preprocess(df):
     return pd.concat([matrix, df.select_dtypes(exclude=[np.number])], axis=1).to_numpy()
 
 
+def get_data_points(df_results, column, indices):
+    return [
+        df_results[column].iloc[index] if index is not None else None
+        for index in indices
+    ]
+
+
 def sample_params(
     df,
     matrix,
@@ -786,13 +792,14 @@ def sample_params(
                 actual=actual,
                 method=method,
                 precomputed=precomputed,
+                df=df,
             ),
             samples,
             chunksize=math.ceil(n_iter / 40),
         )
     else:
         results = [
-            evaluate_clusters(sample, matrix, actual, method, precomputed)
+            evaluate_clusters(sample, matrix, actual, method, precomputed, df)
             for sample in tqdm(samples)
         ]
     df_results = pd.DataFrame(
@@ -809,6 +816,11 @@ def sample_params(
         max_muti = np.max(df_results.AdjMutualInfo)
         max_rand = np.max(df_results.AdjRandIndex)
         max_combo = np.max(df_results.Combined)
+
+        amax_dabo = np.argmax(df_results.DaviesBouldin)
+        amax_caha = np.argmax(df_results.CalinskiHarabasz)
+        # amax_dunn = np.argmax(df_results.Dunn)
+        amax_silh = np.argmax(df_results.Silhouette)
         amax_gini = np.argmax(df_results.GiniCoeff)
         amin_stu0 = np.argmin(
             np.maximum(df_results["max(X)/sum(X)"], df_results["len(X)/sum(X)"])
@@ -816,7 +828,6 @@ def sample_params(
         amin_stu1 = np.argmin(df_results["max(X)/sum(X)"] + df_results["len(X)/sum(X)"])
         amax_nice = np.argmax(df_results.Niceness)
         amax_neat = np.argmax(df_results.Neatness)
-        amax_silh = np.argmax(df_results.Silhouette)
         if knee is not None:
             n, d = df.shape
             k = min(2 * d, n) - 1
@@ -826,78 +837,38 @@ def sample_params(
                 knee = get_knee(matrix, k, **kwargs)
         if knee is not None:
             knee_x = np.argmin(np.abs(np.array([x["eps"] for x in samples]) - knee))
-        if precomputed is None:
-            amax_dabo = np.argmax(df_results.DaviesBouldin)
-            amax_caha = np.argmax(df_results.CalinskiHarabasz)
-            amax_dunn = np.argmax(df_results.Dunn)
+        else:
+            knee_x = None
+
+        indices = [
+            amax_dabo,
+            amax_caha,
+            # amax_dunn,
+            amax_silh,
+            knee_x,
+            amax_gini,
+            amin_stu0,
+            amin_stu1,
+            amax_nice,
+            amax_neat,
+        ]
         results_table = pd.DataFrame(
             {
                 "Metric": [
+                    "DaviesBouldin",
+                    "CalinskiHarabasz",
+                    # "Dunn",
+                    "Silhouette",
+                    "Knee" if knee is not None else None,
+                    "GiniCoeff",
                     "Max(K, L)",
                     "K + L",
                     "Niceness",
                     "Neatness",
-                    "GiniCoeff",
-                    "Silhouette",
-                    "Knee" if knee is not None else None,
-                    "DaviesBouldin" if precomputed is None else None,
-                    "CalinskiHarabasz" if precomputed is None else None,
-                    "Dunn" if precomputed is None else None,
                 ],
-                "MutualInfo": [
-                    df_results.AdjMutualInfo.iloc[amin_stu0],
-                    df_results.AdjMutualInfo.iloc[amin_stu1],
-                    df_results.AdjMutualInfo.iloc[amax_nice],
-                    df_results.AdjMutualInfo.iloc[amax_neat],
-                    df_results.AdjMutualInfo.iloc[amax_gini],
-                    df_results.AdjMutualInfo.iloc[amax_silh],
-                    df_results.AdjMutualInfo.iloc[knee_x] if knee is not None else None,
-                    df_results.AdjMutualInfo.iloc[amax_dabo]
-                    if precomputed is None
-                    else None,
-                    df_results.AdjMutualInfo.iloc[amax_caha]
-                    if precomputed is None
-                    else None,
-                    df_results.AdjMutualInfo.iloc[amax_dunn]
-                    if precomputed is None
-                    else None,
-                ],
-                "RandIndex": [
-                    df_results.AdjRandIndex.iloc[amin_stu0],
-                    df_results.AdjRandIndex.iloc[amin_stu1],
-                    df_results.AdjRandIndex.iloc[amax_nice],
-                    df_results.AdjRandIndex.iloc[amax_neat],
-                    df_results.AdjRandIndex.iloc[amax_gini],
-                    df_results.AdjRandIndex.iloc[amax_silh],
-                    df_results.AdjRandIndex.iloc[knee_x] if knee is not None else None,
-                    df_results.AdjRandIndex.iloc[amax_dabo]
-                    if precomputed is None
-                    else None,
-                    df_results.AdjRandIndex.iloc[amax_caha]
-                    if precomputed is None
-                    else None,
-                    df_results.AdjRandIndex.iloc[amax_dunn]
-                    if precomputed is None
-                    else None,
-                ],
-                "Combined": [
-                    df_results.Combined.iloc[amin_stu0],
-                    df_results.Combined.iloc[amin_stu1],
-                    df_results.Combined.iloc[amax_nice],
-                    df_results.Combined.iloc[amax_neat],
-                    df_results.Combined.iloc[amax_gini],
-                    df_results.Combined.iloc[amax_silh],
-                    df_results.Combined.iloc[knee_x] if knee is not None else None,
-                    df_results.Combined.iloc[amax_dabo]
-                    if precomputed is None
-                    else None,
-                    df_results.Combined.iloc[amax_caha]
-                    if precomputed is None
-                    else None,
-                    df_results.Combined.iloc[amax_dunn]
-                    if precomputed is None
-                    else None,
-                ],
+                "AdjMutualInfo": get_data_points(df_results, "AdjMutualInfo", indices),
+                "AdjRandIndex": get_data_points(df_results, "AdjRandIndex", indices),
+                "Combined": get_data_points(df_results, "Combined", indices),
             }
         )
         results_table = results_table.dropna()
@@ -927,6 +898,10 @@ def sample_params(
                 "GiniCoeff",
                 "len(X)/sum(X)",
                 "max(X)/sum(X)",
+                f"DaviesBouldin {df_results.DaviesBouldin.max()}",
+                f"CalinskiHarabasz {df_results.CalinskiHarabasz.max()}",
+                # f"Dunn {df_results.Dunn.max()}",
+                "Silhouette",
             ]
             + (
                 (
@@ -939,18 +914,8 @@ def sample_params(
                                 "AdjMutualInfo",
                                 "Combined",
                             ]
-                            + (
-                                [
-                                    f"DaviesBouldin {df_results.DaviesBouldin.max()}",
-                                    f"CalinskiHarabasz {df_results.CalinskiHarabasz.max()}",
-                                    "Dunn",
-                                ]
-                                if precomputed is None
-                                else []
-                            )
                         )
                     )
-                    + ["Silhouette"]
                 )
                 if actual is not None
                 else []
