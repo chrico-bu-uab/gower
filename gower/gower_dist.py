@@ -182,9 +182,9 @@ def gower_matrix(
 
     X_cat = Z_cat.iloc[x_index,]
     X_num = Z_num.iloc[x_index,]
+    X_cir = Z_cir.iloc[x_index,]
     Y_cat = Z_cat.iloc[y_index,]
     Y_num = Z_num.iloc[y_index,]
-    X_cir = Z_cir.iloc[x_index,]
     Y_cir = Z_cir.iloc[y_index,]
 
     h_t = np.zeros(num_cols)
@@ -629,46 +629,26 @@ def neatness(cluster_sizes, normalize=True):
     return num * maximal[1] / (den * maximal[0]) if maximal[0] else 1.0
 
 
-def δ(ck, cl):
-    values = np.ones([len(ck), len(cl)])
-    for i in range(len(ck)):
-        for j in range(len(cl)):
-            values[i, j] = np.linalg.norm(ck[i] - cl[j])
-    return np.min(values)
+def δ(ck, cl, ord):
+    diff = ck[:, np.newaxis, :] - cl[np.newaxis, :, :]
+    return np.min(np.linalg.norm(diff, axis=-1, ord=ord))
 
 
-def Δ(ci):
-    values = np.zeros([len(ci), len(ci)])
-    for i in range(len(ci)):
-        for j in range(len(ci)):
-            values[i, j] = np.linalg.norm(ci[i] - ci[j])
-    return np.max(values)
+def Δ(ci, ord):
+    diff = ci[:, np.newaxis, :] - ci[np.newaxis, :, :]
+    return np.max(np.linalg.norm(diff, axis=-1, ord=ord))
 
 
-def dunn(k_list):
-    δs = np.ones([len(k_list), len(k_list)])
-    Δs = np.zeros([len(k_list), 1])
-    l_range = list(range(len(k_list)))
-    for k in l_range:
-        for l in l_range[:k] + l_range[k + 1 :]:
-            δs[k, l] = δ(k_list[k], k_list[l])
-            Δs[k] = Δ(k_list[k])
-    return np.min(δs) / np.max(Δs) if np.max(Δs) else 0
+def dunn(i_list, ord=1):
+    j_range = list(range(len(i_list)))
+    δs = np.array([[δ(i_list[i], i_list[j], ord) for j in j_range] for i in j_range])
+    for i in j_range:
+        δs[i, i] = 1.0
+    max_Δ = np.max(np.array([Δ(i_list[i], ord) for i in range(len(i_list))]))
+    return np.min(δs) / max_Δ if max_Δ else 0.0
 
 
-def inverse_sigmoid(x):
-    return np.log(x / (1 - x))
-
-
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-
-def rescaled_silhouette(*args, **kwargs):
-    return sigmoid(inverse_sigmoid(silhouette_score(*args, **kwargs) / 2 + 0.5) / 2)
-
-
-def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed, df):
+def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     if method == cluster_optics_dbscan:
         clusters = cluster_optics_dbscan(
             reachability=precomputed.reachability_,
@@ -685,9 +665,9 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed, df
     counts_dict = dict(zip(*np.unique(counts, return_counts=True)))
     try:
         if precomputed is not None:
-            sil = rescaled_silhouette(matrix, clusters, metric="precomputed")
+            sil = silhouette_score(matrix, clusters, metric="precomputed")
         else:
-            sil = rescaled_silhouette(matrix, clusters)
+            sil = silhouette_score(matrix, clusters)
     except ValueError:
         sil = np.nan
     out = {
@@ -701,20 +681,23 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed, df
         "clusters": clusters,
         "counts_dict": counts_dict,
     }
-    df = pd.get_dummies(df)
     try:
-        db = davies_bouldin_score(df, clusters)
+        db = davies_bouldin_score(matrix, clusters)
     except ValueError:
         db = np.nan
     try:
-        ch = calinski_harabasz_score(df, clusters)
+        ch = calinski_harabasz_score(matrix, clusters)
     except ValueError:
         ch = np.nan
     # try:
-    #     di = dunn([df.to_numpy()[clusters == i] for i in np.unique(clusters)])
+    #     di = dunn([matrix[clusters == i] for i in np.unique(clusters)])
     # except ValueError:
     #     di = np.nan
-    out |= {"DaviesBouldin": db, "CalinskiHarabasz": ch}  # , "Dunn": di}
+    out |= {
+        "DaviesBouldin": db,
+        "CalinskiHarabasz": ch,
+        # "Dunn": di
+    }
     if actual is not None:
         if actual.dtype == float:
             cr = correlation_ratio(clusters, actual)
@@ -731,10 +714,7 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed, df
 
 def get_knee(X, k, **kwargs):
     knn = NearestNeighbors(n_neighbors=k, **kwargs).fit(X)
-
-    # For each point, compute distances to its k-nearest neighbors
     distances, _ = knn.kneighbors(X)
-
     distances = np.sort(distances, axis=0)[::-1, k - 1]
 
     kn = KneeLocator(
@@ -749,15 +729,12 @@ def get_knee(X, k, **kwargs):
 
 
 def simple_preprocess(df):
-    # just numeric features
-    matrix = df.select_dtypes(include=[np.number])
-    matrix -= matrix.min()
-    matrix /= matrix.max()
-    matrix.fillna(1, inplace=True)
-    weight = matrix.apply(get_num_weight)
-    matrix *= weight / weight.sum()
-    # return adjusted numeric features plus cat features
-    return pd.concat([matrix, df.select_dtypes(exclude=[np.number])], axis=1).to_numpy()
+    df = df.copy()
+    df -= df.min()
+    df /= df.max()
+    df.fillna(1, inplace=True)
+    weight = df.apply(get_num_weight)
+    return df * weight / weight.sum()
 
 
 def get_data_points(df_results, column, indices):
@@ -780,6 +757,7 @@ def sample_params(
     title,
     knee=None,
     plot_corr=False,
+    plot_metrics=True,
     **kwargs
 ):
     if isinstance(matrix, pd.DataFrame):
@@ -793,14 +771,13 @@ def sample_params(
                 actual=actual,
                 method=method,
                 precomputed=precomputed,
-                df=df,
             ),
             samples,
             chunksize=math.ceil(n_iter / 40),
         )
     else:
         results = [
-            evaluate_clusters(sample, matrix, actual, method, precomputed, df)
+            evaluate_clusters(sample, matrix, actual, method, precomputed)
             for sample in tqdm(samples)
         ]
     df_results = pd.DataFrame(
@@ -830,7 +807,7 @@ def sample_params(
         amax_nice = np.argmax(df_results.Niceness)
         amax_neat = np.argmax(df_results.Neatness)
         if knee is not None:
-            n, d = df.shape
+            n, d = matrix.shape
             k = min(2 * d, n) - 1
             if precomputed is not None:
                 knee = get_knee(matrix, k, metric="precomputed", **kwargs)
@@ -860,7 +837,7 @@ def sample_params(
                     "CalinskiHarabasz",
                     # "Dunn",
                     "Silhouette",
-                    "Knee" if knee is not None else None,
+                    "Knee",
                     "GiniCoeff",
                     "Max(K, L)",
                     "K + L",
@@ -872,7 +849,7 @@ def sample_params(
                 "Combined": get_data_points(df_results, "Combined", indices),
             }
         )
-        results_table = results_table.dropna()
+        results_table = results_table.fillna(0)
         results_table.set_index("Metric", inplace=True)
         results_table.max_muti = max_muti
         results_table.max_rand = max_rand
@@ -885,75 +862,76 @@ def sample_params(
     # assign clusters
     df["cluster"] = best_params["clusters"]
     df.cluster = df.cluster.astype(str)
+    
+    if actual is not None:
+        plt.style.use("dark_background")
+        plt.figure(figsize=(10, 10))
 
-    plt.style.use("dark_background")
-    plt.figure(figsize=(10, 10))
-
-    # plot param vs. metrics
-    var = np.array([z["sample"][param] for z in results])
-    legend = (
-        (
-            [
-                f"DaviesBouldin {df_results.DaviesBouldin.max()}",
-                f"CalinskiHarabasz {df_results.CalinskiHarabasz.max()}",
-                # f"Dunn {df_results.Dunn.max()}",
-                "Silhouette",
-                "GiniCoeff",
-                "len(X)/sum(X)",
-                "max(X)/sum(X)",
-                "Niceness",
-                "Neatness",
-            ]
-            + (
-                (
+        # plot param vs. metrics
+        var = np.array([z["sample"][param] for z in results])
+        legend = (
+            (
+                [
+                    f"DaviesBouldin {df_results.DaviesBouldin.max()}",
+                    f"CalinskiHarabasz {df_results.CalinskiHarabasz.max()}",
+                    # f"Dunn {df_results.Dunn.max()}",
+                    "Silhouette",
+                    "GiniCoeff",
+                    "len(X)/sum(X)",
+                    "max(X)/sum(X)",
+                    "Niceness",
+                    "Neatness",
+                ]
+                + (
                     (
-                        ["CorrRatio"]
-                        if actual.dtype == float
-                        else (
-                            [
-                                "AdjRandIndex",
-                                "AdjMutualInfo",
-                                "Combined",
-                            ]
+                        (
+                            ["CorrRatio"]
+                            if actual.dtype == float
+                            else (
+                                [
+                                    "AdjRandIndex",
+                                    "AdjMutualInfo",
+                                    "Combined",
+                                ]
+                            )
                         )
                     )
+                    if actual is not None
+                    else []
                 )
-                if actual is not None
-                else []
             )
-        )
-        + ["Maximizing"]
-    ) + (["Knee"] if knee is not None else [])
-    colors = plt.get_cmap("Set3").colors
-    for i, col in enumerate(legend[: -1 - (knee is not None)]):
-        if " " in col:
-            plt.plot(
-                var,
-                df_results[col.split()[0]] / df_results[col.split()[0]].max(),
-                c=colors[i],
-            )
-        else:
-            plt.plot(var, df_results[col], c=colors[i])
+            + ["Maximizing"]
+        ) + (["Knee"] if knee is not None else [])
+        colors = plt.get_cmap("tab20").colors
+        for i, col in enumerate(legend[: -1 - (knee is not None)]):
+            if " " in col:
+                plt.plot(
+                    var,
+                    df_results[col.split()[0]] / df_results[col.split()[0]].max(),
+                    c=colors[i],
+                )
+            else:
+                plt.plot(var, df_results[col], c=colors[i])
 
-    plt.axvline(best_params["sample"][param], c="w", ls="--")
-    if knee is not None:
-        plt.axvline(var[np.argmin(np.abs(var - knee))], c="g", ls=":")
-    plt.legend(legend)
-    plt.title(title)
-    plt.xlabel(param)
-    plt.show()
+        plt.axvline(best_params["sample"][param], c="w", ls="--")
+        if knee is not None:
+            plt.axvline(var[np.argmin(np.abs(var - knee))], c="g", ls=":")
+        plt.legend(legend)
+        plt.title(title)
+        plt.xlabel(param)
+        plt.show()
+
+        # print results
+        del best_params["clusters"]
+        print(best_params)
+        if actual is not None:
+            print(actual.value_counts())
+            print(df_results.Combined.max())
 
     if plot_corr:
         # display corr
         n_cols = df.shape[1]
         associations(df, nom_nom_assoc="theil", figsize=(n_cols, n_cols))
-
-    # print results
-    del best_params["clusters"]
-    print(best_params)
-    if actual is not None:
-        print(actual.value_counts())
-        print(df_results.Combined.max())
 
     out = (
         (
@@ -1007,7 +985,7 @@ def optimize_dbscan(
         knee=True,
     )
 
-    return df, res
+    return df.cluster, res
 
 
 def optimize_gmm(df, title, actual=None, n_iter=10, use_mp=True):
@@ -1039,15 +1017,15 @@ def optimize_gmm(df, title, actual=None, n_iter=10, use_mp=True):
         title,
     )
 
-    return df, res
+    return df.cluster, res
 
 
 def optimize_bgmm(df, title, actual=None, n_iter=10, use_mp=True):
     df = df.copy()
 
-    if len(df) > 5000:
+    if len(df) > 10000:
         covariance_type = "spherical"
-    elif len(df) > 2000:
+    elif len(df) > 1000:
         covariance_type = "diag"
     else:
         covariance_type = "full"
@@ -1071,7 +1049,7 @@ def optimize_bgmm(df, title, actual=None, n_iter=10, use_mp=True):
         title,
     )
 
-    return df, res
+    return df.cluster, res
 
 
 def optimize_agglo(
@@ -1117,7 +1095,7 @@ def optimize_agglo(
         title,
     )
 
-    return df, res
+    return df.cluster, res
 
 
 def optimize_optics(
@@ -1156,7 +1134,7 @@ def optimize_optics(
         title,
     )
 
-    return df, res
+    return df.cluster, res
 
 
 def optimize_kmeans(
@@ -1183,7 +1161,7 @@ def optimize_kmeans(
         title,
     )
 
-    return df, res
+    return df.cluster, res
 
 
 def optimize_hdbscan(
@@ -1211,7 +1189,7 @@ def optimize_hdbscan(
         title,
     )
 
-    return df, res
+    return df.cluster, res
 
 
 def optimize_spectral(
@@ -1239,22 +1217,23 @@ def optimize_spectral(
         title,
     )
 
-    return df, res
+    return df.cluster, res
 
 
-def optimize_birch(df, title, actual=None, n_iter=100, use_mp=True):
+def optimize_birch(df, title, actual=None, n_iter=100, factor=0.5, use_mp=True):
     df = df.copy()
 
     matrix = df
 
     samples = [
-        {"threshold": z / n_iter, "n_clusters": None} for z in range(1, n_iter + 1)
+        {"threshold": factor * z / n_iter, "n_clusters": None}
+        for z in range(1, n_iter + 1)
     ]
     res = sample_params(
         df, matrix, actual, Birch, samples, "threshold", n_iter, None, use_mp, title
     )
 
-    return df, res
+    return df.cluster, res
 
 
 def optimize_affinity(
@@ -1284,7 +1263,7 @@ def optimize_affinity(
         title,
     )
 
-    return df, res
+    return df.cluster, res
 
 
 def optimize_meanshift(df, title, actual=None, n_iter=100, use_mp=True):
@@ -1292,9 +1271,12 @@ def optimize_meanshift(df, title, actual=None, n_iter=100, use_mp=True):
 
     matrix = df
 
-    samples = [{"bandwidth": 0.5 + 0.5 * z / n_iter} for z in range(n_iter)]
+    samples = [
+        {"bandwidth": estimate_bandwidth(df, quantile=z / n_iter)}
+        for z in range(1, n_iter)
+    ]
     res = sample_params(
         df, matrix, actual, MeanShift, samples, "bandwidth", n_iter, None, use_mp, title
     )
 
-    return df, res
+    return df.cluster, res
