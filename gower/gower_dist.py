@@ -727,8 +727,8 @@ def tidiness(cluster_sizes):
     s = sum(cluster_sizes)
     if s < 3:
         return np.nan
-    t = nice_helper(s)
-    return (s - max(max(cluster_sizes), len(cluster_sizes))) / (s - max(max(t), len(t)))
+    f = lambda x: max(max(x), len(x))
+    return (s - f(cluster_sizes)) / (s - f(nice_helper(s)))
 
 
 def get_closest_points(x, y):
