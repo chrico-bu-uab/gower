@@ -376,7 +376,7 @@ def dunn(X, **kwargs):
     return min_separation / largest_diameter
 
 
-def get_knee(X, k, **kwargs):
+def get_elbow(X, k, plot=False, **kwargs):
     knn = NearestNeighbors(n_neighbors=k, **kwargs).fit(X)
     distances, _ = knn.kneighbors(X)
     distances = np.sort(distances, axis=0)[:, k - 1]
@@ -388,14 +388,15 @@ def get_knee(X, k, **kwargs):
         curve="convex",
         interp_method="polynomial",
     )
-    plt.xlabel("k")
-    plt.ylabel("Distance")
-    plt.plot(x, distances, "bx-")
-    plt.plot(x, kn.Ds_y)
-    plt.vlines(kn.knee, plt.ylim()[0], plt.ylim()[1], linestyles="--")
-    plt.show()
+    if plot:
+        plt.xlabel("k")
+        plt.ylabel("Distance")
+        plt.plot(x, distances, "bx-")
+        plt.plot(x, kn.Ds_y)
+        plt.vlines(kn.elbow, plt.ylim()[0], plt.ylim()[1], linestyles="--")
+        plt.show()
 
-    return kn.knee_y
+    return kn.elbow_y
 
 
 def fix_classes(x):
@@ -845,7 +846,7 @@ def sample_params(
         precomputed,
         use_mp,
         title,
-        knee=None,
+        elbow=None,
         plot_corr=False,
         **kwargs
 ):
@@ -889,7 +890,7 @@ def sample_params(
     amax_nice = get_peaks(df_results.Niceness)
     amax_neat = get_peaks(df_results.Neatness)
     amax_gini = get_peaks(df_results.GiniCoeff)
-    if knee is not None:
+    if elbow is not None:
         if precomputed is not None:
             kwargs["metric"] = "precomputed"
             m = matrix.copy()
@@ -905,20 +906,20 @@ def sample_params(
         else:
             k = matrix.shape[1] + 1
         print("k=", k)
-        knee = get_knee(matrix, k, **kwargs)
-        if knee is None:
-            knee_x = None
+        elbow = get_elbow(matrix, k, **kwargs)
+        if elbow is None:
+            elbow_x = None
         else:
-            knee_x = np.argmin(np.abs(np.array([x[param] for x in samples]) - knee))
+            elbow_x = np.argmin(np.abs(np.array([x[param] for x in samples]) - elbow))
     else:
-        knee_x = None
+        elbow_x = None
     args = (
         [amax_dabo, amax_caha, amax_dunn, amax_silh,
          amax_gini, amax_tidy, amax_nice, amax_neat]
-        + ([knee_x] if knee is not None else [])
+        + ([elbow_x] if elbow is not None else [])
     )
     data_indices = np.array([amax_dabo, amax_caha, amax_dunn, amax_silh] +
-                            ([knee_x] if knee is not None else []))
+                            ([elbow_x] if elbow is not None else []))
     int_indices = np.array([amax_gini, amax_tidy, amax_nice, amax_neat])
     weighted_median = kernel_weighted_median(*args)
     closest_points = get_closest_points(data_indices, int_indices)
@@ -934,7 +935,7 @@ def sample_params(
             amax_caha,
             amax_dunn,
             amax_silh,
-            knee_x,
+            elbow_x,
             amax_gini,
             amax_tidy,
             amax_nice,
@@ -950,7 +951,7 @@ def sample_params(
                     "CalinskiHarabasz",
                     "Dunn",
                     "Silhouette",
-                    "Knee",
+                    "Elbow",
                     "GiniCoeff",
                     "Tidiness",
                     "Niceness",
@@ -1016,7 +1017,7 @@ def sample_params(
                         )
                         + ["Maximizing"]
                 )
-                + (["Knee"] if knee is not None else [])
+                + (["Elbow"] if elbow is not None else [])
                 + ["KernelWeightedAverage", "ClosestPoints", "Ensemble"]
         )
         colors = [
@@ -1043,7 +1044,7 @@ def sample_params(
             "#ffffff",
             "#000000"
         ]
-        for i, col in enumerate(legend[: -4 - (knee is not None)]):
+        for i, col in enumerate(legend[: -4 - (elbow is not None)]):
             if " " in col:
                 ax.plot(
                     var,
@@ -1055,9 +1056,9 @@ def sample_params(
                 ax.plot(var, df_results[col], c=colors[i], alpha=0.4)
 
         ax.axvline(best_params["sample"][param], c="w", ls="--", alpha=0.4)
-        if knee is not None:
+        if elbow is not None:
             ax.axvline(
-                var[np.argmin(np.abs(var - knee))], c="orange", ls=":", alpha=0.4
+                var[np.argmin(np.abs(var - elbow))], c="orange", ls=":", alpha=0.4
             )
         ax.axvline(
             var[weighted_median],
@@ -1144,7 +1145,7 @@ def optimize_dbscan(
                             precomputed,
                             use_mp,
                             title,
-                            knee=True)
+                            elbow=True)
     else:
         res = sample_params(df,
                             matrix,
@@ -1156,7 +1157,7 @@ def optimize_dbscan(
                             precomputed,
                             use_mp,
                             title,
-                            knee=True,
+                            elbow=True,
                             metric="minkowski")
 
     return df.cluster.to_numpy(), res
@@ -1240,7 +1241,7 @@ def optimize_agglo(
         precomputed,
         use_mp,
         title,
-        knee=True,
+        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
