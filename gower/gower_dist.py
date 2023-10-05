@@ -755,26 +755,34 @@ def neatness(cluster_sizes, normalize=True):
 #     return round((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
 
 
-def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
-    # from https://stackoverflow.com/a/75321415/5295786
-    i = values.argsort()
-    sorted_weights = weights[i]
-    sorted_values = values[i]
-    Sn = sorted_weights.cumsum()
-
-    if interpolate:
-        Pn = (Sn - sorted_weights/2) / Sn[-1]
-        return np.interp(quantiles, Pn, sorted_values)
-    else:
-        return sorted_values[np.searchsorted(Sn, quantiles * Sn[-1])]
-
-
-def kernel_weighted_median(*indices):
+def kernel_weighted_average(*indices):
     indices = np.array(indices)
     if len(indices) == 1:
         return indices.item()
     weights = np.exp(-np.square(indices - indices.mean()) / (2 * indices.var()))
-    return round(weighted_quantiles(indices, weights))
+    return round(np.average(indices, weights=weights))
+
+
+# def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
+#     # from https://stackoverflow.com/a/75321415/5295786
+#     i = values.argsort()
+#     sorted_weights = weights[i]
+#     sorted_values = values[i]
+#     Sn = sorted_weights.cumsum()
+#
+#     if interpolate:
+#         Pn = (Sn - sorted_weights/2) / Sn[-1]
+#         return np.interp(quantiles, Pn, sorted_values)
+#     else:
+#         return sorted_values[np.searchsorted(Sn, quantiles * Sn[-1])]
+#
+#
+# def kernel_weighted_median(*indices):
+#     indices = np.array(indices)
+#     if len(indices) == 1:
+#         return indices.item()
+#     weights = np.exp(-np.square(indices - indices.mean()) / (2 * indices.var()))
+#     return round(weighted_quantiles(indices, weights))
 
 
 def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
@@ -918,9 +926,9 @@ def sample_params(
         [amax_dabo, amax_caha, amax_dunn, amax_silh, amax_gini, amax_nice, amax_neat]
         + ([elbow_x] if elbow is not None else [])
     )
-    weighted_median = kernel_weighted_median(*args)
+    ensemble = kernel_weighted_average(*args)
     if actual is None:
-        best = weighted_median
+        best = ensemble
     elif actual.dtype != float:
         max_muti = np.max(df_results.AdjMutualInfo)
         max_rand = np.max(df_results.AdjRandIndex)
@@ -934,7 +942,7 @@ def sample_params(
             amax_gini,
             amax_nice,
             amax_neat,
-            weighted_median,
+            ensemble,
         ]
         results_table = pd.DataFrame(
             {
@@ -1049,8 +1057,8 @@ def sample_params(
                 var[np.argmin(np.abs(var - elbow))], c="orange", ls=":", alpha=0.4
             )
         ax.axvline(
-            var[weighted_median],
-            c="b",
+            var[ensemble],
+            c="g",
             ls="-.",
             alpha=0.4,
         )
@@ -1076,7 +1084,7 @@ def sample_params(
             else np.max(df_results.Combined)
         )
         if actual is not None
-        else np.max(results[weighted_median])
+        else np.max(results[ensemble])
     )
     return (out, results_table) if actual is not None and actual.dtype != float else out
 
