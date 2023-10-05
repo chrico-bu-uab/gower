@@ -735,7 +735,7 @@ def tidiness(cluster_sizes):
 def get_closest_points(x, y):
     d = np.abs(x[:, np.newaxis] - y)
     c = np.argwhere(d == np.min(d))
-    return round((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
+    return math.ceil((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
 
 
 def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
@@ -758,7 +758,7 @@ def kernel_weighted_median(*indices):
         return indices.item()
     weights = np.exp(-np.square(indices - indices.mean()) / (2 * indices.var()))
     print(weights)
-    return round(weighted_quantiles(indices, weights))
+    return math.ceil(weighted_quantiles(indices, weights))
 
 
 def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
@@ -923,7 +923,7 @@ def sample_params(
     int_indices = np.array([amax_gini, amax_tidy, amax_nice, amax_neat])
     weighted_median = kernel_weighted_median(*args)
     closest_points = get_closest_points(data_indices, int_indices)
-    ensemble = (weighted_median + closest_points) // 2
+    ensemble = math.ceil((weighted_median + closest_points) / 2)
     if actual is None:
         best = ensemble
     elif actual.dtype != float:
