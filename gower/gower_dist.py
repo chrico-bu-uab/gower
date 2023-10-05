@@ -12,7 +12,7 @@ from scipy.sparse import issparse
 from scipy.spatial.distance import cdist
 from scipy.stats import norm
 from sklearn.cluster import *
-from sklearn.decomposition import PCA
+from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics import (
     adjusted_mutual_info_score,
     adjusted_rand_score,
@@ -355,7 +355,7 @@ def dunn(X, **kwargs):
     def f(x, y):
         distances = cdist(x, y, **kwargs)
         return np.mean(distances)
-    
+
     diameters = np.array([f(x, x) for x in X])
     largest_diameter = np.max(diameters)
 
@@ -376,27 +376,45 @@ def dunn(X, **kwargs):
     return min_separation / largest_diameter
 
 
-def get_elbow(X, k, plot=False, **kwargs):
+def get_elbow(X, plot=False, **kwargs):
+    # estimate k
+    if "metric" in kwargs and kwargs["metric"] == "precomputed":
+        a = X.mean(axis=0)
+        assert np.allclose(a, X.mean(axis=1))
+        m = X.copy()
+        m -= a
+        m = m.T
+        m -= a
+        m += 2 * a.mean()
+        m = TruncatedSVD(random_state=42).fit_transform(m)
+        m = np.abs(m).max(axis=0)
+        k = (m >= m.mean()).sum() + 1
+    else:
+        k = X.shape[1] + 1
+
+    # compute distances
     knn = NearestNeighbors(n_neighbors=k, **kwargs).fit(X)
     distances, _ = knn.kneighbors(X)
     distances = np.sort(distances, axis=0)[:, k - 1]
-    x = range(1, len(distances) + 1)
+    x_axis = range(1, len(distances) + 1)
 
-    kn = KneeLocator(
-        x,
+    # find elbow
+    elbow = KneeLocator(
+        x_axis,
         distances,
-        curve="convex",
+        curve="convex",  # concave=knee
         interp_method="polynomial",
     )
+
     if plot:
         plt.xlabel("k")
         plt.ylabel("Distance")
-        plt.plot(x, distances, "bx-")
-        plt.plot(x, kn.Ds_y)
-        plt.vlines(kn.elbow, plt.ylim()[0], plt.ylim()[1], linestyles="--")
+        plt.plot(x_axis, distances, "bx-")
+        plt.plot(x_axis, elbow.Ds_y)
+        plt.vlines(elbow.elbow, plt.ylim()[0], plt.ylim()[1], linestyles="--")
         plt.show()
 
-    return kn.elbow_y
+    return elbow.elbow_y
 
 
 def fix_classes(x):
@@ -757,7 +775,6 @@ def kernel_weighted_median(*indices):
     if len(indices) == 1:
         return indices.item()
     weights = np.exp(-np.square(indices - indices.mean()) / (2 * indices.var()))
-    print(weights)
     return math.ceil(weighted_quantiles(indices, weights))
 
 
@@ -893,20 +910,7 @@ def sample_params(
     if elbow is not None:
         if precomputed is not None:
             kwargs["metric"] = "precomputed"
-            m = matrix.copy()
-            a = matrix.mean(axis=0)
-            assert np.allclose(a, matrix.mean(axis=1))
-            m -= a
-            m = m.T
-            m -= a
-            m += 2 * a.mean()
-            m = PCA(random_state=42).fit_transform(m)
-            m = np.abs(m).max(axis=0)
-            k = (m > m.mean()).sum() + 1
-        else:
-            k = matrix.shape[1] + 1
-        print("k=", k)
-        elbow = get_elbow(matrix, k, **kwargs)
+        elbow = get_elbow(matrix, **kwargs)
         if elbow is None:
             elbow_x = None
         else:
@@ -956,7 +960,7 @@ def sample_params(
                     "Tidiness",
                     "Niceness",
                     "Neatness",
-                    "KernelWeightedAverage",
+                    "KernelWeightedMedian",
                     "ClosestPoints",
                     "Ensemble",
                 ],
@@ -1018,7 +1022,7 @@ def sample_params(
                         + ["Maximizing"]
                 )
                 + (["Elbow"] if elbow is not None else [])
-                + ["KernelWeightedAverage", "ClosestPoints", "Ensemble"]
+                + ["KernelWeightedMedian", "ClosestPoints", "Ensemble"]
         )
         colors = [
             "#e6194b",
@@ -1087,7 +1091,6 @@ def sample_params(
         del best_params["clusters"]
         print(best_params)
         print(actual.value_counts())
-        print(df_results.Combined.max())
 
     if plot_corr:
         # display corr
