@@ -755,34 +755,26 @@ def neatness(cluster_sizes, normalize=True):
 #     return round((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
 
 
-def kernel_weighted_average(*indices):
+def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
+    # from https://stackoverflow.com/a/75321415/5295786
+    i = values.argsort()
+    sorted_weights = weights[i]
+    sorted_values = values[i]
+    Sn = sorted_weights.cumsum()
+
+    if interpolate:
+        Pn = (Sn - sorted_weights/2) / Sn[-1]
+        return np.interp(quantiles, Pn, sorted_values)
+    else:
+        return sorted_values[np.searchsorted(Sn, quantiles * Sn[-1])]
+
+
+def kernel_weighted_median(*indices):
     indices = np.array(indices)
     if len(indices) == 1:
         return indices.item()
     weights = np.exp(-np.square(indices - indices.mean()) / (2 * indices.var()))
-    return round(np.average(indices, weights=weights))
-
-
-# def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
-#     # from https://stackoverflow.com/a/75321415/5295786
-#     i = values.argsort()
-#     sorted_weights = weights[i]
-#     sorted_values = values[i]
-#     Sn = sorted_weights.cumsum()
-#
-#     if interpolate:
-#         Pn = (Sn - sorted_weights/2) / Sn[-1]
-#         return np.interp(quantiles, Pn, sorted_values)
-#     else:
-#         return sorted_values[np.searchsorted(Sn, quantiles * Sn[-1])]
-#
-#
-# def kernel_weighted_median(*indices):
-#     indices = np.array(indices)
-#     if len(indices) == 1:
-#         return indices.item()
-#     weights = np.exp(-np.square(indices - indices.mean()) / (2 * indices.var()))
-#     return round(weighted_quantiles(indices, weights))
+    return round(weighted_quantiles(indices, weights))
 
 
 def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
@@ -926,7 +918,7 @@ def sample_params(
         [amax_dabo, amax_caha, amax_dunn, amax_silh, amax_gini, amax_nice, amax_neat]
         + ([elbow_x] if elbow is not None else [])
     )
-    ensemble = kernel_weighted_average(*args)
+    ensemble = kernel_weighted_median(*args)
     if actual is None:
         best = ensemble
     elif actual.dtype != float:
