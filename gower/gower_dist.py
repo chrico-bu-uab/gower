@@ -703,56 +703,56 @@ def neatness(cluster_sizes, normalize=True):
     return neat_helper(f, num, den, total, normalize)
 
 
-def tidiness(cluster_sizes):
-    """
-    Examples:
-    ---------
-    >>> from gower.gower_dist import *
-    >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
-    >>> pairs = [(str(tuple(x)), tidiness(x)) for x in C]
-    >>> for k, v in sorted(pairs, key=lambda x: x[1]): print(f"{k:50}{v:25}")
-    (0,)                                                                    nan
-    (1,)                                                                    nan
-    (1, 1)                                                                  nan
-    (2,)                                                                    nan
-    (1, 1, 1)                                                               0.0
-    (3,)                                                                    0.0
-    (1, 1, 1, 1)                                                            0.0
-    (4,)                                                                    0.0
-    (1, 1, 1, 1, 1)                                                         0.0
-    (5,)                                                                    0.0
-    (1, 1, 1, 1, 1, 1)                                                      0.0
-    (6,)                                                                    0.0
-    (1, 1, 1, 1, 2)                                          0.3333333333333333
-    (1, 5)                                                   0.3333333333333333
-    (1, 1, 2)                                                               0.5
-    (1, 3)                                                                  0.5
-    (1, 1, 1, 2)                                                            0.5
-    (1, 4)                                                                  0.5
-    (1, 1, 1, 3)                                             0.6666666666666666
-    (1, 1, 2, 2)                                             0.6666666666666666
-    (1, 1, 4)                                                0.6666666666666666
-    (2, 4)                                                   0.6666666666666666
-    (1, 2)                                                                  1.0
-    (2, 2)                                                                  1.0
-    (1, 1, 3)                                                               1.0
-    (1, 2, 2)                                                               1.0
-    (2, 3)                                                                  1.0
-    (1, 2, 3)                                                               1.0
-    (2, 2, 2)                                                               1.0
-    (3, 3)                                                                  1.0
-    """
-    s = sum(cluster_sizes)
-    if s < 3:
-        return np.nan
-    f = lambda x: max(max(x), len(x))
-    return (s - f(cluster_sizes)) / (s - f(nice_helper(s)))
+# def tidiness(cluster_sizes):
+#     """
+#     Examples:
+#     ---------
+#     >>> from gower.gower_dist import *
+#     >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
+#     >>> pairs = [(str(tuple(x)), tidiness(x)) for x in C]
+#     >>> for k, v in sorted(pairs, key=lambda x: x[1]): print(f"{k:50}{v:25}")
+#     (0,)                                                                    nan
+#     (1,)                                                                    nan
+#     (1, 1)                                                                  nan
+#     (2,)                                                                    nan
+#     (1, 1, 1)                                                               0.0
+#     (3,)                                                                    0.0
+#     (1, 1, 1, 1)                                                            0.0
+#     (4,)                                                                    0.0
+#     (1, 1, 1, 1, 1)                                                         0.0
+#     (5,)                                                                    0.0
+#     (1, 1, 1, 1, 1, 1)                                                      0.0
+#     (6,)                                                                    0.0
+#     (1, 1, 1, 1, 2)                                          0.3333333333333333
+#     (1, 5)                                                   0.3333333333333333
+#     (1, 1, 2)                                                               0.5
+#     (1, 3)                                                                  0.5
+#     (1, 1, 1, 2)                                                            0.5
+#     (1, 4)                                                                  0.5
+#     (1, 1, 1, 3)                                             0.6666666666666666
+#     (1, 1, 2, 2)                                             0.6666666666666666
+#     (1, 1, 4)                                                0.6666666666666666
+#     (2, 4)                                                   0.6666666666666666
+#     (1, 2)                                                                  1.0
+#     (2, 2)                                                                  1.0
+#     (1, 1, 3)                                                               1.0
+#     (1, 2, 2)                                                               1.0
+#     (2, 3)                                                                  1.0
+#     (1, 2, 3)                                                               1.0
+#     (2, 2, 2)                                                               1.0
+#     (3, 3)                                                                  1.0
+#     """
+#     s = sum(cluster_sizes)
+#     if s < 3:
+#         return np.nan
+#     f = lambda x: max(max(x), len(x))
+#     return (s - f(cluster_sizes)) / (s - f(nice_helper(s)))
 
 
-def get_closest_points(x, y):
-    d = np.abs(x[:, np.newaxis] - y)
-    c = np.argwhere(d == np.min(d))
-    return round((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
+# def get_closest_points(x, y):
+#     d = np.abs(x[:, np.newaxis] - y)
+#     c = np.argwhere(d == np.min(d))
+#     return round((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
 
 
 def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
@@ -805,7 +805,6 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
         "Niceness": niceness(counts),
         "GiniCoeff": gini_coefficient(counts),
         "Neatness": neatness(counts),
-        "Tidiness": tidiness(counts),
         "sample": sample,
         "clusters": clusters,
         "counts_dict": counts_dict,
@@ -902,7 +901,6 @@ def sample_params(
     amax_caha = get_peaks(df_results.CalinskiHarabasz)
     amax_dunn = get_peaks(df_results.Dunn)
     amax_silh = get_peaks(df_results.Silhouette)
-    amax_tidy = get_peaks(df_results.Tidiness)
     amax_nice = get_peaks(df_results.Niceness)
     amax_neat = get_peaks(df_results.Neatness)
     amax_gini = get_peaks(df_results.GiniCoeff)
@@ -917,18 +915,12 @@ def sample_params(
     else:
         elbow_x = None
     args = (
-        [amax_dabo, amax_caha, amax_dunn, amax_silh,
-         amax_gini, amax_tidy, amax_nice, amax_neat]
+        [amax_dabo, amax_caha, amax_dunn, amax_silh, amax_gini, amax_nice, amax_neat]
         + ([elbow_x] if elbow is not None else [])
     )
-    data_indices = np.array([amax_dabo, amax_caha, amax_dunn, amax_silh] +
-                            ([elbow_x] if elbow is not None else []))
-    int_indices = np.array([amax_gini, amax_tidy, amax_nice, amax_neat])
     weighted_median = kernel_weighted_median(*args)
-    closest_points = get_closest_points(data_indices, int_indices)
-    ensemble = math.ceil((weighted_median + closest_points) / 2)
     if actual is None:
-        best = ensemble
+        best = weighted_median
     elif actual.dtype != float:
         max_muti = np.max(df_results.AdjMutualInfo)
         max_rand = np.max(df_results.AdjRandIndex)
@@ -940,12 +932,9 @@ def sample_params(
             amax_silh,
             elbow_x,
             amax_gini,
-            amax_tidy,
             amax_nice,
             amax_neat,
             weighted_median,
-            closest_points,
-            ensemble,
         ]
         results_table = pd.DataFrame(
             {
@@ -956,11 +945,8 @@ def sample_params(
                     "Silhouette",
                     "Elbow",
                     "GiniCoeff",
-                    "Tidiness",
                     "Niceness",
                     "Neatness",
-                    "KernelWeightedMedian",
-                    "ClosestPoints",
                     "Ensemble",
                 ],
                 "AdjMutualInfo": get_data_points(df_results, "AdjMutualInfo", indices),
@@ -996,7 +982,6 @@ def sample_params(
                                     "Dunn %0.2f" % df_results.Dunn.max(),
                                     "Silhouette",
                                     "GiniCoeff",
-                                    "Tidiness",
                                     "Niceness",
                                     "Neatness",
                                 ]
@@ -1021,7 +1006,7 @@ def sample_params(
                         + ["Maximizing"]
                 )
                 + (["Elbow"] if elbow is not None else [])
-                + ["KernelWeightedMedian", "ClosestPoints", "Ensemble"]
+                + ["Ensemble"]
         )
         colors = [
             "#e6194b",
@@ -1047,7 +1032,7 @@ def sample_params(
             "#ffffff",
             "#000000"
         ]
-        for i, col in enumerate(legend[: -4 - (elbow is not None)]):
+        for i, col in enumerate(legend[: -2 - (elbow is not None)]):
             if " " in col:
                 ax.plot(
                     var,
@@ -1066,18 +1051,6 @@ def sample_params(
         ax.axvline(
             var[weighted_median],
             c="b",
-            ls="-.",
-            alpha=0.4,
-        )
-        ax.axvline(
-            var[closest_points],
-            c="g",
-            ls="-.",
-            alpha=0.4,
-        )
-        ax.axvline(
-            var[ensemble],
-            c="r",
             ls="-.",
             alpha=0.4,
         )
@@ -1103,7 +1076,7 @@ def sample_params(
             else np.max(df_results.Combined)
         )
         if actual is not None
-        else np.max(results[ensemble])
+        else np.max(results[weighted_median])
     )
     return (out, results_table) if actual is not None and actual.dtype != float else out
 
