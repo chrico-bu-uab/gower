@@ -12,7 +12,7 @@ from scipy.sparse import issparse
 from scipy.spatial.distance import cdist
 from scipy.stats import norm
 from sklearn.cluster import *
-from sklearn.decomposition import TruncatedSVD
+from sklearn.decomposition import PCA
 from sklearn.metrics import (
     adjusted_mutual_info_score,
     adjusted_rand_score,
@@ -384,9 +384,7 @@ def get_elbow(X, plot=False, **kwargs):
         m = X.copy()
         m -= a
         m = m.T
-        m -= a
-        m += 2 * a.mean()
-        m = TruncatedSVD(random_state=42).fit_transform(m)
+        m = PCA(random_state=42).fit_transform(m)
         m = np.abs(m).max(axis=0)
         k = (m >= m.mean()).sum() + 1
     else:
