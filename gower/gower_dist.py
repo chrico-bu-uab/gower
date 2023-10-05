@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from dython.nominal import associations, correlation_ratio
 from kneed import KneeLocator
+from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
 from scipy.sparse import issparse
 from scipy.spatial.distance import cdist
@@ -178,7 +179,7 @@ def gower_matrix(
             ]
     weight_num = np.array(weight_num)
 
-    print(weight_cat, weight_num, weight_cir)
+    # print(weight_cat, weight_num, weight_cir)
     weight_sum = weight_cat.sum() + weight_num.sum() + weight_cir.sum()
 
     # distance matrix
@@ -894,7 +895,7 @@ def sample_params(
     )
 
     def get_peaks(x):
-        peaks, _ = find_peaks(x)
+        peaks, _ = find_peaks(gaussian_filter1d(x, 1))
         return peaks[np.argmax(x[peaks])] if peaks.size else -1
 
     amax_dabo = get_peaks(df_results.DaviesBouldin)
