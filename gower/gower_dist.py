@@ -897,7 +897,7 @@ def sample_params(
         peaks, _ = find_peaks(gaussian_filter1d(x, 1))
         return peaks[np.argmax(x[peaks])] if peaks.size else -1
 
-    amax_dabo = get_peaks(df_results.DaviesBouldin)
+    amax_dabo = get_peaks(-df_results.DaviesBouldin)
     amax_caha = get_peaks(df_results.CalinskiHarabasz)
     amax_dunn = get_peaks(df_results.Dunn)
     amax_silh = get_peaks(df_results.Silhouette)
