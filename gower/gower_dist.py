@@ -29,6 +29,8 @@ from tqdm.contrib.concurrent import process_map
 
 # Forked from https://pypi.org/project/gower/
 
+# Everything in this package uses Manhattan distance (except DB)! :)
+
 
 def get_cat_features(X):
     x_n_cols = X.shape[1]
@@ -76,6 +78,7 @@ def get_num_weight(x):
 def check_data(data_x, data_y):
     X = data_x
     Y = data_x if data_y is None else data_y
+
     if isinstance(X, pd.DataFrame):
         if not np.array_equal(X.columns, Y.columns):
             raise TypeError("X and Y must have same columns!")
@@ -110,7 +113,50 @@ def gower_matrix(
     """
     Please refer to "Distances with Mixed-Type Variables, some
     Modified Gower’s Coefficients" by Marcello D'Orazio for information on
-    parameters q, c_t, and knn.
+    parameters `q`, `c_t`, and `knn`.
+
+    Parameters
+    ----------
+    data_x : array-like
+        A 2D array of data.
+    data_y : array-like, optional
+        A 2D array of data. If None, then `data_y` is set to `data_x`.
+    cat_features : array-like, optional
+        A 1D array of boolean values indicating whether a column is categorical.
+        If None, then `cat_features` is set to the result of `get_cat_features`.
+    circular_features : array-like, optional
+        A 1D array of integer values indicating the periodicity of a column.
+        If None, then `circular_features` is set to zeros.
+    weight_cat : array-like, optional
+        A 1D array of weights for categorical columns.
+        If None, then `weight_cat` is set to ones.
+    weight_cir : array-like, optional
+        A 1D array of weights for circular columns.
+        If None, then `weight_cir` is computed based on the periodicity of the
+        column.
+    weight_num : array-like, optional
+        A 1D array of weights for numerical columns.
+        If None, then `weight_num` is set to the result of `get_num_weight`.
+    q : float or array-like, optional
+        A float or 1D array of floats between 0 and 0.5.
+        See D'Orazio for more information.
+    c_t : float or array-like, optional
+        A float or 1D array of floats between 0 and 1.
+        See D'Orazio for more information.
+    knn : bool or array-like, optional
+        A bool or 1D array of bools indicating whether to use k-nearest neighbors
+        for numerical columns.
+        If True, then `knn` is set to ones.
+        See D'Orazio for more information.
+    use_mp : bool, optional
+        A bool indicating whether to use multiprocessing.
+    tqdm_kwargs : dict, optional
+        A dict of keyword arguments to pass to `tqdm`.
+
+    Returns
+    -------
+    array-like
+        A 2D array of distances.
     """
     X, Y = check_data(data_x, data_y)
 
@@ -360,17 +406,34 @@ def hamming_similarity(df):
     return df.values[:, None] == df.values
 
 
+# Clustering Metrics
+
+
 def dunn(X, **kwargs):
+    """
+    Dunn Index for Cluster Validation
+    @param X: list of clusters
+    @param kwargs: arguments to pass to cdist
+    @return: Dunn Index
+    """
     def f(x, y, g):
+        """
+        @param x: cluster x's data
+        @param y: cluster y's data
+        @param g: function to take of distances between x and y
+        @return: single distance between x and y
+        """
         distances = cdist(x, y, **kwargs)
         return g(distances)
 
+    # compute diameters
     diameters = np.array([f(x, x, np.max) for x in X])
     largest_diameter = np.max(diameters)
 
     if not largest_diameter:
         return np.nan
 
+    # compute separations
     min_separation = np.inf
     n = len(X)
     for i in range(n - 1):
@@ -382,6 +445,7 @@ def dunn(X, **kwargs):
     if min_separation == np.inf:
         return np.nan
 
+    # compute Dunn Index
     return min_separation / largest_diameter
 
 
@@ -426,58 +490,6 @@ def get_elbow(X, plot=False, **kwargs):
         plt.show()
 
     return elbow.elbow_y
-
-
-def fix_classes(x):
-    if isinstance(x, np.ndarray):
-        x = x.tolist()
-    x = [i for i in x if i is not None]
-    if "-1" in x:
-        x = [int(i) for i in x]
-    if -1 in x:
-        assert all(i >= -1 for i in x), x
-        x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
-    return x
-
-
-def all_possible_clusters(n, memo=None):
-    """
-    *** This function was (mostly) written by GitHub Copilot and ChatGPT. ***
-    *** See also s.o. 24582741/5295786 ***
-
-    This function returns a list of all possible clusterings given a number of
-    elements to cluster. The clusterings are returned as a list of lists of
-    integers. The integers are the element counts per cluster.
-
-    For example, if there are 3 elements, then the possible clusterings are:
-    [[1, 1, 1], [1, 2], [3]]
-
-    This function is not recommended for n > 20.
-    """
-    if n == 1:
-        return [[1]]
-    if memo is None:
-        memo = {}
-    if n in memo:
-        return memo[n]
-    out = []
-    for i in range(1, n):
-        out.extend(sorted([i] + j) for j in all_possible_clusters(n - i, memo))
-    out.append([n])
-    out = [c for i, c in enumerate(out) if c not in out[:i]]
-    memo[n] = out
-    return out
-
-
-def transpose_counts(x):
-    x = list(x)
-    y = []
-    while x:
-        if len(x) == 1:
-            return y + [1] * x[0]
-        y.append(len(x))
-        x = [i - 1 for i in x if i > 1]
-    return y
 
 
 def nice_helper(n):
@@ -543,11 +555,6 @@ def niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     -------
     float
         A float on the closed interval [0, 1].
-
-    Raises
-    ------
-    ValueError
-        If the number of elements in any cluster is not a natural number.
     """
 
     def f(x):
@@ -762,6 +769,11 @@ def tidiness(cluster_sizes):
 
 
 def get_closest_points(x, y):
+    """
+    The idea here was to find the closest points between two sets of estimates
+    (for instance, classical methods versus niceness, etc.) for a given
+    clustering hyperparameter (say epsilon).
+    """
     d = np.abs(x[:, np.newaxis] - y)
     c = np.argwhere(d == np.min(d))
     return round((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
@@ -784,11 +796,26 @@ def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
 
 
 def kernel_weighted_median(*indices):
+    """
+    Used for the Ensemble method below.
+    """
     indices = np.array(indices)
     if len(indices) == 1:
         return indices.item()
     weights = np.exp(-np.square(indices - indices.mean()) / (2 * indices.var()))
     return round(weighted_quantiles(indices, weights))
+
+
+def fix_classes(x):
+    if isinstance(x, np.ndarray):
+        x = x.tolist()
+    x = [i for i in x if i is not None]
+    if "-1" in x:
+        x = [int(i) for i in x]
+    if -1 in x:
+        assert all(i >= -1 for i in x), x
+        x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
+    return x
 
 
 def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
@@ -823,6 +850,8 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
         "clusters": clusters,
         "counts_dict": counts_dict,
     }
+    # NOTE: These metrics are not supported per se for precomputed distances,
+    # but they appear to work fine.
     try:
         db = davies_bouldin_score(matrix, clusters)
     except ValueError:
