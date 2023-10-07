@@ -353,11 +353,11 @@ def hamming_similarity(df):
 
 
 def dunn(X, **kwargs):
-    def f(x, y):
+    def f(x, y, g):
         distances = cdist(x, y, **kwargs)
-        return np.mean(distances)
+        return g(distances)
 
-    diameters = np.array([f(x, x) for x in X])
+    diameters = np.array([f(x, x, np.max) for x in X])
     largest_diameter = np.max(diameters)
 
     if not largest_diameter:
@@ -367,7 +367,7 @@ def dunn(X, **kwargs):
     n = len(X)
     for i in range(n - 1):
         for j in range(i + 1, n):
-            separation = f(X[i], X[j])
+            separation = f(X[i], X[j], np.min)
             if separation < min_separation:
                 min_separation = separation
 
