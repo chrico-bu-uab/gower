@@ -931,6 +931,8 @@ def sample_params(
             if key not in ["sample", "clusters", "counts_dict"]
         }
     )
+    # smooth results for peak finding and plotting
+    # do NOT smooth the extrinsic metrics!!!
     for col in df_results.columns:
         if col not in ("AdjRandIndex", "AdjMutualInfo", "Combined"):
             df_results[col] = gaussian_filter1d(df_results[col], 1)
