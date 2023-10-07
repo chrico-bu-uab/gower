@@ -132,8 +132,8 @@ def gower_matrix(
         If None, then `weight_cat` is set to ones.
     weight_cir : array-like, optional
         A 1D array of weights for circular columns.
-        If None, then `weight_cir` is computed based on the periodicity of the
-        column.
+        If None, then `weight_cir` is a function of the periodicities of the
+        circular columns.
     weight_num : array-like, optional
         A 1D array of weights for numerical columns.
         If None, then `weight_num` is set to the result of `get_num_weight`.
@@ -338,8 +338,8 @@ def gower_get(
                     abs_delta.iloc[j, i] = 0.0
     sij_num = abs_delta.to_numpy() / g_t
     sij_num = np.minimum(sij_num, np.ones_like(sij_num))
-
     sum_num = np.multiply(feature_weight_num, sij_num).sum(axis=1)
+
     sums = np.add(np.add(sum_cat, sum_num), sum_cir)
     return np.divide(sums, feature_weight_sum)
 
