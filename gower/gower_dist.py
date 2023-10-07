@@ -416,6 +416,7 @@ def dunn(X, **kwargs):
     @param kwargs: arguments to pass to cdist
     @return: Dunn Index
     """
+
     def f(x, y, g):
         """
         @param x: cluster x's data
@@ -789,7 +790,7 @@ def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
     Sn = sorted_weights.cumsum()
 
     if interpolate:
-        Pn = (Sn - sorted_weights/2) / Sn[-1]
+        Pn = (Sn - sorted_weights / 2) / Sn[-1]
         return np.interp(quantiles, Pn, sorted_values)
     else:
         return sorted_values[np.searchsorted(Sn, quantiles * Sn[-1])]
@@ -965,8 +966,8 @@ def sample_params(
     else:
         elbow_x = None
     args = (
-        [amax_dabo, amax_caha, amax_dunn, amax_silh, amax_gini, amax_nice, amax_neat]
-        + ([elbow_x] if elbow is not None else [])
+            [amax_dabo, amax_caha, amax_dunn, amax_silh, amax_gini, amax_nice, amax_neat]
+            + ([elbow_x] if elbow is not None else [])
     )
     ensemble = kernel_weighted_median(*args)
     if actual is None:
@@ -1023,21 +1024,21 @@ def sample_params(
         # plot param vs. metrics
         var = np.array([z["sample"][param] for z in results])
         legend = (
+            (
                 (
-                        (
-                                [
-                                    "DaviesBouldin %0.2f" % df_results.DaviesBouldin.max(),
-                                    "CalinskiHarabasz %0.2f" % df_results.CalinskiHarabasz.max(),
-                                    "Dunn %0.2f" % df_results.Dunn.max(),
-                                    "Silhouette",
-                                    "GiniCoeff",
-                                    "Niceness",
-                                    "Neatness",
-                                ]
-                                + (["Elbow"] if elbow is not None else [])
-                                + ["Ensemble", "Maximizing", "AdjRandIndex", "AdjMutualInfo", "Combined"]
-                        )
+                        [
+                            "DaviesBouldin %0.2f" % df_results.DaviesBouldin.max(),
+                            "CalinskiHarabasz %0.2f" % df_results.CalinskiHarabasz.max(),
+                            "Dunn %0.2f" % df_results.Dunn.max(),
+                            "Silhouette",
+                            "GiniCoeff",
+                            "Niceness",
+                            "Neatness",
+                        ]
+                        + (["Elbow"] if elbow is not None else [])
+                        + ["Ensemble", "Maximizing", "AdjRandIndex", "AdjMutualInfo", "Combined"]
                 )
+            )
         )
         # https://stats.stackexchange.com/a/336149/369868 :)
         colors = [
