@@ -27,6 +27,9 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 
+# Forked from https://pypi.org/project/gower/
+
+
 def get_cat_features(X):
     x_n_cols = X.shape[1]
     if isinstance(X, pd.DataFrame):
@@ -104,6 +107,11 @@ def gower_matrix(
         use_mp=True,
         **tqdm_kwargs
 ):
+    """
+    Please refer to "Distances with Mixed-Type Variables, some
+    Modified Gower’s Coefficients" by Marcello D'Orazio for information on
+    parameters q, c_t, and knn.
+    """
     X, Y = check_data(data_x, data_y)
 
     x_n_rows, x_n_cols = X.shape
@@ -380,6 +388,7 @@ def dunn(X, **kwargs):
 def get_elbow(X, plot=False, **kwargs):
     # estimate k
     if "metric" in kwargs and kwargs["metric"] == "precomputed":
+        # methodology from https://stats.stackexchange.com/a/12503/369868
         a = X.mean(axis=0)
         assert np.allclose(a, X.mean(axis=1))
         m = X.copy()
@@ -390,6 +399,9 @@ def get_elbow(X, plot=False, **kwargs):
         k = (m >= m.mean()).sum() + 1
     else:
         k = X.shape[1] + 1
+
+    # The remainder of this function is based on:
+    # https://stats.stackexchange.com/q/541340
 
     # compute distances
     knn = NearestNeighbors(n_neighbors=k, **kwargs).fit(X)
@@ -703,60 +715,62 @@ def neatness(cluster_sizes, normalize=True):
     return neat_helper(f, num, den, total, normalize)
 
 
-# def tidiness(cluster_sizes):
-#     """
-#     Examples:
-#     ---------
-#     >>> from gower.gower_dist import *
-#     >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
-#     >>> pairs = [(str(tuple(x)), tidiness(x)) for x in C]
-#     >>> for k, v in sorted(pairs, key=lambda x: x[1]): print(f"{k:50}{v:25}")
-#     (0,)                                                                    nan
-#     (1,)                                                                    nan
-#     (1, 1)                                                                  nan
-#     (2,)                                                                    nan
-#     (1, 1, 1)                                                               0.0
-#     (3,)                                                                    0.0
-#     (1, 1, 1, 1)                                                            0.0
-#     (4,)                                                                    0.0
-#     (1, 1, 1, 1, 1)                                                         0.0
-#     (5,)                                                                    0.0
-#     (1, 1, 1, 1, 1, 1)                                                      0.0
-#     (6,)                                                                    0.0
-#     (1, 1, 1, 1, 2)                                          0.3333333333333333
-#     (1, 5)                                                   0.3333333333333333
-#     (1, 1, 2)                                                               0.5
-#     (1, 3)                                                                  0.5
-#     (1, 1, 1, 2)                                                            0.5
-#     (1, 4)                                                                  0.5
-#     (1, 1, 1, 3)                                             0.6666666666666666
-#     (1, 1, 2, 2)                                             0.6666666666666666
-#     (1, 1, 4)                                                0.6666666666666666
-#     (2, 4)                                                   0.6666666666666666
-#     (1, 2)                                                                  1.0
-#     (2, 2)                                                                  1.0
-#     (1, 1, 3)                                                               1.0
-#     (1, 2, 2)                                                               1.0
-#     (2, 3)                                                                  1.0
-#     (1, 2, 3)                                                               1.0
-#     (2, 2, 2)                                                               1.0
-#     (3, 3)                                                                  1.0
-#     """
-#     s = sum(cluster_sizes)
-#     if s < 3:
-#         return np.nan
-#     f = lambda x: max(max(x), len(x))
-#     return (s - f(cluster_sizes)) / (s - f(nice_helper(s)))
+def tidiness(cluster_sizes):
+    """
+    Examples:
+    ---------
+    >>> from gower.gower_dist import *
+    >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
+    >>> pairs = [(str(tuple(x)), tidiness(x)) for x in C]
+    >>> for k, v in sorted(pairs, key=lambda x: x[1]): print(f"{k:50}{v:25}")
+    (0,)                                                                    nan
+    (1,)                                                                    nan
+    (1, 1)                                                                  nan
+    (2,)                                                                    nan
+    (1, 1, 1)                                                               0.0
+    (3,)                                                                    0.0
+    (1, 1, 1, 1)                                                            0.0
+    (4,)                                                                    0.0
+    (1, 1, 1, 1, 1)                                                         0.0
+    (5,)                                                                    0.0
+    (1, 1, 1, 1, 1, 1)                                                      0.0
+    (6,)                                                                    0.0
+    (1, 1, 1, 1, 2)                                          0.3333333333333333
+    (1, 5)                                                   0.3333333333333333
+    (1, 1, 2)                                                               0.5
+    (1, 3)                                                                  0.5
+    (1, 1, 1, 2)                                                            0.5
+    (1, 4)                                                                  0.5
+    (1, 1, 1, 3)                                             0.6666666666666666
+    (1, 1, 2, 2)                                             0.6666666666666666
+    (1, 1, 4)                                                0.6666666666666666
+    (2, 4)                                                   0.6666666666666666
+    (1, 2)                                                                  1.0
+    (2, 2)                                                                  1.0
+    (1, 1, 3)                                                               1.0
+    (1, 2, 2)                                                               1.0
+    (2, 3)                                                                  1.0
+    (1, 2, 3)                                                               1.0
+    (2, 2, 2)                                                               1.0
+    (3, 3)                                                                  1.0
+    """
+    total = sum(cluster_sizes)
+    if total < 3:
+        return np.nan
+    f = lambda x: max(max(x), len(x))
+    return (total - f(cluster_sizes)) / (total - f(nice_helper(total)))
 
 
-# def get_closest_points(x, y):
-#     d = np.abs(x[:, np.newaxis] - y)
-#     c = np.argwhere(d == np.min(d))
-#     return round((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
+def get_closest_points(x, y):
+    d = np.abs(x[:, np.newaxis] - y)
+    c = np.argwhere(d == np.min(d))
+    return round((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
 
 
 def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
-    # from https://stackoverflow.com/a/75321415/5295786
+    """
+    https://stackoverflow.com/a/75321415/5295786
+    """
     i = values.argsort()
     sorted_weights = weights[i]
     sorted_values = values[i]
@@ -988,6 +1002,7 @@ def sample_params(
                         )
                 )
         )
+        # https://stats.stackexchange.com/a/336149/369868 :)
         colors = [
             "#e6194b",
             "#3cb44b",
