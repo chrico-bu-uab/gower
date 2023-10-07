@@ -1043,10 +1043,10 @@ def sample_params(
             elif col != "Ensemble":
                 ax.plot(var, df_results[col], c=colors[i], alpha=0.4)
 
-        ax.axvline(best_params["sample"][param], c="w", ls="--", alpha=0.4)
+        ax.axvline(best_params["sample"][param], c="y", ls="--", alpha=0.4)
         if elbow is not None:
             ax.axvline(
-                var[np.argmin(np.abs(var - elbow))], c="orange", ls=":", alpha=0.4
+                var[np.argmin(np.abs(var - elbow))], c="orange", ls="-.", alpha=0.4
             )
         ax.axvline(
             var[ensemble],
@@ -1054,6 +1054,8 @@ def sample_params(
             ls="-.",
             alpha=0.4,
         )
+        for i, arg in enumerate(args[:-1]):
+            ax.axvline(var[arg], c=colors[i], ls=":", alpha=0.4)
         fig.legend(legend, loc="outside center right")
         plt.title(title)
         plt.xlabel(param)
