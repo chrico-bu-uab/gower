@@ -29,7 +29,7 @@ from tqdm.contrib.concurrent import process_map
 
 # Forked from https://pypi.org/project/gower/
 
-# Everything in this package uses Manhattan distance (except DB)! :)
+# Everything in this package uses Manhattan distance (except DB score)! :)
 
 
 def get_cat_features(X):
@@ -806,6 +806,9 @@ def kernel_weighted_median(*indices):
     return round(weighted_quantiles(indices, weights))
 
 
+# Cluster evaluation
+
+
 def fix_classes(x):
     if isinstance(x, np.ndarray):
         x = x.tolist()
@@ -871,6 +874,9 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
             "AdjRandIndex"
         ] + gini_actual * out["AdjMutualInfo"]
     return out
+
+
+# Cluster optimization
 
 
 def simple_preprocess(df):
