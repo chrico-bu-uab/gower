@@ -1024,21 +1024,17 @@ def sample_params(
         # plot param vs. metrics
         var = np.array([z["sample"][param] for z in results])
         legend = (
-            (
-                (
-                        [
-                            "DaviesBouldin %0.2f" % df_results.DaviesBouldin.max(),
-                            "CalinskiHarabasz %0.2f" % df_results.CalinskiHarabasz.max(),
-                            "Dunn %0.2f" % df_results.Dunn.max(),
-                            "Silhouette",
-                            "GiniCoeff",
-                            "Niceness",
-                            "Neatness",
-                        ]
-                        + (["Elbow"] if elbow is not None else [])
-                        + ["Ensemble", "Maximizing", "AdjRandIndex", "AdjMutualInfo", "Combined"]
-                )
-            )
+                [
+                    "DaviesBouldin %0.2f" % df_results.DaviesBouldin.max(),
+                    "CalinskiHarabasz %0.2f" % df_results.CalinskiHarabasz.max(),
+                    "Dunn %0.2f" % df_results.Dunn.max(),
+                    "Silhouette",
+                    "GiniCoeff",
+                    "Niceness",
+                    "Neatness",
+                ]
+                + (["Elbow"] if elbow is not None else [])
+                + ["Ensemble", "Maximizing", "AdjRandIndex", "AdjMutualInfo", "Combined"]
         )
         # https://stats.stackexchange.com/a/336149/369868 :)
         colors = [
