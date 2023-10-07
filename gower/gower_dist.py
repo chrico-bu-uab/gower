@@ -5,7 +5,7 @@ from typing import Union
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from dython.nominal import associations, correlation_ratio
+from dython.nominal import associations  # , correlation_ratio
 from kneed import KneeLocator
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
@@ -821,16 +821,12 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
               metric="minkowski", p=1)
     out |= {"DaviesBouldin": db, "CalinskiHarabasz": ch, "Dunn": di}
     if actual is not None:
-        if actual.dtype == float:
-            cr = correlation_ratio(clusters, actual)
-            out["CorrRatio"] = cr
-        else:
-            out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
-            out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, clusters)
-            gini_actual = gini_coefficient(np.unique(actual, return_counts=True)[1])
-            out["Combined"] = (1 - gini_actual) * out[
-                "AdjRandIndex"
-            ] + gini_actual * out["AdjMutualInfo"]
+        out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
+        out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, clusters)
+        gini_actual = gini_coefficient(np.unique(actual, return_counts=True)[1])
+        out["Combined"] = (1 - gini_actual) * out[
+            "AdjRandIndex"
+        ] + gini_actual * out["AdjMutualInfo"]
     return out
 
 
@@ -892,9 +888,12 @@ def sample_params(
             if key not in ["sample", "clusters", "counts_dict"]
         }
     )
+    for col in df_results.columns:
+        if col not in ("AdjRandIndex", "AdjMutualInfo", "Combined"):
+            df_results[col] = gaussian_filter1d(df_results[col], 1)
 
     def get_peaks(x):
-        peaks, _ = find_peaks(gaussian_filter1d(x, 1))
+        peaks, _ = find_peaks(x)
         return peaks[np.argmax(x[peaks])] if peaks.size else -1
 
     amax_dabo = get_peaks(-df_results.DaviesBouldin)
@@ -921,7 +920,7 @@ def sample_params(
     ensemble = kernel_weighted_median(*args)
     if actual is None:
         best = ensemble
-    elif actual.dtype != float:
+    else:
         max_muti = np.max(df_results.AdjMutualInfo)
         max_rand = np.max(df_results.AdjRandIndex)
         max_combo = np.max(df_results.Combined)
@@ -930,10 +929,10 @@ def sample_params(
             amax_caha,
             amax_dunn,
             amax_silh,
-            elbow_x,
             amax_gini,
             amax_nice,
             amax_neat,
+            elbow_x,
             ensemble,
         ]
         results_table = pd.DataFrame(
@@ -943,10 +942,10 @@ def sample_params(
                     "CalinskiHarabasz",
                     "Dunn",
                     "Silhouette",
-                    "Elbow",
                     "GiniCoeff",
                     "Niceness",
                     "Neatness",
+                    "Elbow",
                     "Ensemble",
                 ],
                 "AdjMutualInfo": get_data_points(df_results, "AdjMutualInfo", indices),
@@ -960,8 +959,6 @@ def sample_params(
         results_table.max_rand = max_rand
         results_table.max_combo = max_combo
         best = np.argmax(df_results.Combined)
-    else:
-        best = np.argmin((df_results.CorrRatio - 0.5).abs())
     best_params = results[best]
 
     # assign clusters
@@ -970,6 +967,7 @@ def sample_params(
     if actual is not None:
         plt.style.use("dark_background")
         fig, ax = plt.subplots(layout='constrained', figsize=(16, 9))
+        ax.grid(False)
 
         # plot param vs. metrics
         var = np.array([z["sample"][param] for z in results])
@@ -985,28 +983,10 @@ def sample_params(
                                     "Niceness",
                                     "Neatness",
                                 ]
-                                + (
-                                    (
-                                        (
-                                            ["CorrRatio"]
-                                            if actual.dtype == float
-                                            else (
-                                                [
-                                                    "AdjRandIndex",
-                                                    "AdjMutualInfo",
-                                                    "Combined",
-                                                ]
-                                            )
-                                        )
-                                    )
-                                    if actual is not None
-                                    else []
-                                )
+                                + (["Elbow"] if elbow is not None else [])
+                                + ["Ensemble", "Maximizing", "AdjRandIndex", "AdjMutualInfo", "Combined"]
                         )
-                        + ["Maximizing"]
                 )
-                + (["Elbow"] if elbow is not None else [])
-                + ["Ensemble"]
         )
         colors = [
             "#e6194b",
@@ -1032,30 +1012,32 @@ def sample_params(
             "#ffffff",
             "#000000"
         ]
-        for i, col in enumerate(legend[: -2 - (elbow is not None)]):
+        for i, col in enumerate(legend):
             if " " in col:
                 ax.plot(
                     var,
                     df_results[col.split()[0]] / df_results[col.split()[0]].max(),
+                    '-gD',
                     c=colors[i],
                     alpha=0.4,
+                    markevery=[args[i]]
                 )
-            elif col != "Ensemble":
+            elif col == "Elbow":
+                ax.axvline(var[elbow_x], c=colors[i], ls=":", alpha=0.4)
+            elif col == "Ensemble":
+                ax.axvline(
+                    var[ensemble],
+                    c=colors[i],
+                    ls=":",
+                    alpha=0.4,
+                )
+            elif col == "Maximizing":
+                ax.axvline(best_params["sample"][param], c=colors[i], ls="--", alpha=0.4)
+            elif col in ["AdjRandIndex", "AdjMutualInfo", "Combined"]:
                 ax.plot(var, df_results[col], c=colors[i], alpha=0.4)
+            else:
+                ax.plot(var, df_results[col], '-gD', c=colors[i], alpha=0.4, markevery=[args[i]])
 
-        ax.axvline(best_params["sample"][param], c="w", ls="--", alpha=0.4)
-        if elbow is not None:
-            ax.axvline(
-                var[np.argmin(np.abs(var - elbow))], c=colors[i + 1], ls="-.", alpha=0.4
-            )
-        ax.axvline(
-            var[ensemble],
-            c="g",
-            ls="-.",
-            alpha=0.4,
-        )
-        for i, arg in enumerate(args[:-1]):
-            ax.axvline(var[arg], c=colors[i], ls=":", alpha=0.4)
         fig.legend(legend, loc="outside center right")
         plt.title(title)
         plt.xlabel(param)
@@ -1071,16 +1053,8 @@ def sample_params(
         n_cols = df.shape[1]
         associations(df, nom_nom_assoc="theil", figsize=(n_cols, n_cols))
 
-    out = (
-        (
-            np.min((df_results.CorrRatio - 0.5).abs())
-            if actual.dtype == float
-            else np.max(df_results.Combined)
-        )
-        if actual is not None
-        else np.max(results[ensemble])
-    )
-    return (out, results_table) if actual is not None and actual.dtype != float else out
+    out = np.max(df_results.Combined) if actual is not None else np.max(results[ensemble])
+    return (out, results_table) if actual is not None else out
 
 
 def optimize_dbscan(
