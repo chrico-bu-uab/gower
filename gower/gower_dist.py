@@ -260,7 +260,7 @@ def gower_matrix(
         )
         print("h_t:", h_t)
     f = partial(
-        call_gower_get,
+        compute_with_gower_get,
         x_n_rows=x_n_rows,
         y_n_rows=y_n_rows,
         X_cat=X_cat,
@@ -295,33 +295,44 @@ def gower_matrix(
     return out
 
 
-def gower_get(
-        xi_cat,
-        xi_num,
-        xj_cat,
-        xj_num,
-        feature_weight_cat,
-        feature_weight_cir,
-        feature_weight_num,
-        feature_weight_sum,
-        g_t,
-        h_t,
-        knn,
-        knn_models,
-        xi_cir,
-        xj_cir,
-        periods,
+def compute_with_gower_get(
+    i,
+    x_n_rows,
+    y_n_rows,
+    X_cat,
+    X_num,
+    Y_cat,
+    Y_num,
+    weight_cat,
+    weight_cir,
+    weight_num,
+    weight_sum,
+    g_t,
+    h_t,
+    knn,
+    knn_models,
+    X_cir,
+    Y_cir,
+    periods,
 ):
+    j_start = i if x_n_rows == y_n_rows else 0
+
     # categorical columns
+    xi_cat = X_cat.iloc[i, :]
+    xj_cat = Y_cat.iloc[j_start:y_n_rows, :]
     sij_cat = np.where(xi_cat == xj_cat, np.zeros_like(xi_cat), np.ones_like(xi_cat))
-    sum_cat = np.multiply(feature_weight_cat, sij_cat).sum(axis=1)
+    sum_cat = np.multiply(weight_cat, sij_cat).sum(axis=1)
 
     # circular columns
+    xi_cir = X_cir.iloc[i, :]
+    xj_cir = Y_cir.iloc[j_start:y_n_rows, :]
     sij_cir = np.absolute(xi_cir - xj_cir)
     sij_cir = np.minimum(sij_cir, periods - sij_cir) / (periods // 2)
-    sum_cir = np.multiply(feature_weight_cir, sij_cir).sum(axis=1)
+    sum_cir = np.multiply(weight_cir, sij_cir).sum(axis=1)
 
     # numerical columns
+    xi_num = X_num.iloc[i, :]
+    xj_num = Y_num.iloc[j_start:y_n_rows, :]
     abs_delta = np.absolute(xi_num - xj_num)
     abs_delta = np.maximum(abs_delta - h_t, np.zeros_like(abs_delta))
     xi_num = xi_num.to_numpy()
@@ -338,50 +349,10 @@ def gower_get(
                     abs_delta.iloc[j, i] = 0.0
     sij_num = abs_delta.to_numpy() / g_t
     sij_num = np.minimum(sij_num, np.ones_like(sij_num))
-    sum_num = np.multiply(feature_weight_num, sij_num).sum(axis=1)
+    sum_num = np.multiply(weight_num, sij_num).sum(axis=1)
 
     sums = np.add(np.add(sum_cat, sum_num), sum_cir)
-    return np.divide(sums, feature_weight_sum)
-
-
-def call_gower_get(
-        i,
-        x_n_rows,
-        y_n_rows,
-        X_cat,
-        X_num,
-        Y_cat,
-        Y_num,
-        weight_cat,
-        weight_cir,
-        weight_num,
-        weight_sum,
-        g_t,
-        h_t,
-        knn,
-        knn_models,
-        X_cir,
-        Y_cir,
-        periods,
-):
-    j_start = i if x_n_rows == y_n_rows else 0
-    return gower_get(
-        X_cat.iloc[i, :],
-        X_num.iloc[i, :],
-        Y_cat.iloc[j_start:y_n_rows, :],
-        Y_num.iloc[j_start:y_n_rows, :],
-        weight_cat,
-        weight_cir,
-        weight_num,
-        weight_sum,
-        g_t,
-        h_t,
-        knn,
-        knn_models.copy(),
-        X_cir.iloc[i, :],
-        Y_cir.iloc[j_start:y_n_rows, :],
-        periods,
-    )
+    return np.divide(sums, weight_sum)
 
 
 def smallest_indices(ary, n):
