@@ -125,7 +125,7 @@ def gower_matrix(
         A 1D array of boolean values indicating whether a column is categorical.
         If None, then `cat_features` is set to the result of `get_cat_features`.
     circular_features : array-like, optional
-        A 1D array of integer values indicating the periodicity of a column.
+        A 1D array of integer values indicating the periodicities of columns.
         If None, then `circular_features` is set to zeros.
     weight_cat : array-like, optional
         A 1D array of weights for categorical columns.
