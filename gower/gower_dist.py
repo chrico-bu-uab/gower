@@ -243,12 +243,12 @@ def gower_matrix(
     x_index = range(x_n_rows)
     y_index = range(x_n_rows, x_n_rows + y_n_rows)
 
-    X_cat = Z_cat.iloc[x_index,]
-    X_num = Z_num.iloc[x_index,]
-    X_cir = Z_cir.iloc[x_index,]
-    Y_cat = Z_cat.iloc[y_index,]
-    Y_num = Z_num.iloc[y_index,]
-    Y_cir = Z_cir.iloc[y_index,]
+    X_cat = Z_cat.iloc[x_index, ]
+    X_num = Z_num.iloc[x_index, ]
+    X_cir = Z_cir.iloc[x_index, ]
+    Y_cat = Z_cat.iloc[y_index, ]
+    Y_num = Z_num.iloc[y_index, ]
+    Y_cir = Z_cir.iloc[y_index, ]
 
     h_t = np.zeros(num_cols)
     if np.any(c_t > 0):
@@ -1037,7 +1037,7 @@ def sample_params(
                 ax.plot(
                     var,
                     df_results[col.split()[0]] / df_results[col.split()[0]].max(),
-                    '-gD',
+                    '-D',
                     c=colors[i],
                     alpha=0.4,
                     markevery=[args[i]]
@@ -1056,7 +1056,7 @@ def sample_params(
             elif col in ["AdjRandIndex", "AdjMutualInfo", "Combined"]:
                 ax.plot(var, df_results[col], c=colors[i], alpha=0.4)
             else:
-                ax.plot(var, df_results[col], '-gD', c=colors[i], alpha=0.4, markevery=[args[i]])
+                ax.plot(var, df_results[col], '-D', c=colors[i], alpha=0.4, markevery=[args[i]])
 
         fig.legend(legend, loc="outside center right")
         plt.title(title)
