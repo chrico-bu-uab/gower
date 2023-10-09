@@ -1252,6 +1252,7 @@ def optimize_optics(
         clust,
         use_mp,
         title,
+        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
@@ -1275,6 +1276,7 @@ def optimize_kmeans(
         precomputed,
         use_mp,
         title,
+        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
@@ -1303,6 +1305,7 @@ def optimize_hdbscan(
         precomputed,
         use_mp,
         title,
+        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
@@ -1331,6 +1334,7 @@ def optimize_spectral(
         precomputed,
         use_mp,
         title,
+        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
@@ -1377,6 +1381,7 @@ def optimize_affinity(
         precomputed,
         use_mp,
         title,
+        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
