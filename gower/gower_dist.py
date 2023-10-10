@@ -466,7 +466,7 @@ def dunn(X, **kwargs):
 
 def reconstruct_observations(matrix):
     """
-    methodology from https://stats.stackexchange.com/a/12503/369868
+    methodology loosely based on https://stats.stackexchange.com/a/12503/369868
     """
     col_mean = matrix.mean(axis=0)
     assert np.allclose(col_mean, matrix.mean(axis=1))
