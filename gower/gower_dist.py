@@ -468,12 +468,9 @@ def reconstruct_observations(matrix):
     """
     methodology loosely based on https://stats.stackexchange.com/a/12503/369868
     """
-    col_mean = matrix.mean(axis=0)
-    assert np.allclose(col_mean, matrix.mean(axis=1))
-    mat = matrix.copy()
-    mat -= col_mean
-    mat = mat.T
-    mat = PCA(random_state=42).fit_transform(mat)
+    assert np.allclose(matrix, matrix.T)
+    mat = matrix - matrix.mean(axis=0)
+    mat = PCA(random_state=42).fit_transform(mat.T)
     mag = np.abs(mat).max(axis=0)
     return mat[:, mag > mag.mean()]
 
