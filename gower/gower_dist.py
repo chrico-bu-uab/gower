@@ -33,7 +33,7 @@ from tqdm.contrib.concurrent import process_map
 
 # Forked from https://pypi.org/project/gower/
 
-# Everything in this package uses Manhattan distance (except CH score)! :)
+# Everything in this package uses Manhattan distance! :)
 
 
 def get_cat_features(X):
