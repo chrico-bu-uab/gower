@@ -511,7 +511,7 @@ def reconstruct_observations(matrix):
     mat = mat.T
     mat = PCA(random_state=42).fit_transform(mat)
     mag = np.abs(mat).max(axis=0)
-    return mat[:, mag > mag.mean()]
+    return mat[:, mag > 1e-10]
 
 
 def get_elbow(X, plot=False, **kwargs):
@@ -918,7 +918,7 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     except ValueError:
         db = np.nan
     try:
-        ch = calinski_harabasz_score(matrix, clusters, 1)
+        ch = calinski_harabasz_score(matrix, clusters, p=1)
     except ValueError:
         ch = np.nan
     di = dunn([matrix[clusters == i] for i in np.unique(clusters)],
