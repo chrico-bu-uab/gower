@@ -423,7 +423,7 @@ def davies_bouldin_score(X, labels, **kwargs):
     return np.mean(scores)
 
 
-def dunn(X, **kwargs):
+def dunn_score(X, **kwargs):
     """
     Dunn Index for Cluster Validation
     @param X: list of clusters
@@ -464,28 +464,36 @@ def dunn(X, **kwargs):
     return min_separation / largest_diameter
 
 
-def reconstruct_observations(matrix):
+def reconstruct_observations(matrix, plot=False):
     """
     methodology loosely based on https://stats.stackexchange.com/a/12503/369868
     """
     assert np.allclose(matrix, matrix.T)
     mat = matrix - matrix.mean(axis=0)
-    mat = PCA(random_state=42).fit_transform(mat.T)
-    mag = np.abs(mat).max(axis=0)
-    return mat[:, mag > mag.mean()]
+    pca = PCA(random_state=42)
+    mat = pca.fit_transform(mat.T)
+    x_axis = range(1, len(mat) + 1)
+    elbow = KneeLocator(
+        x_axis,
+        pca.explained_variance_ratio_,
+        curve="convex",
+        direction="decreasing",
+        interp_method="polynomial"
+    )
+    if plot:
+        plt.xlabel("d")
+        plt.ylabel("Explained Variance Ratio")
+        plt.plot(x_axis, pca.explained_variance_ratio_, "bx-")
+        plt.plot(x_axis, elbow.Ds_y)
+        plt.vlines(elbow.elbow, plt.ylim()[0], plt.ylim()[1], linestyles="--")
+        plt.show()
+    return mat[:, :elbow.elbow]
 
 
-def get_elbow(X, plot=False, **kwargs):
-    # estimate k
-    if "metric" in kwargs and kwargs["metric"] == "precomputed":
-        m = reconstruct_observations(X)
-        k = m.shape[1] + 1
-    else:
-        k = X.shape[1] + 1
-
-    # The remainder of this function is based on:
-    # https://stats.stackexchange.com/q/541340
-
+def get_elbow(X, k, plot=False, **kwargs):
+    """
+    See https://stats.stackexchange.com/q/541340
+    """
     # compute distances
     knn = NearestNeighbors(n_neighbors=k, **kwargs).fit(X)
     distances, _ = knn.kneighbors(X)
@@ -496,8 +504,8 @@ def get_elbow(X, plot=False, **kwargs):
     elbow = KneeLocator(
         x_axis,
         distances,
-        curve="convex",  # concave=knee
-        interp_method="polynomial",
+        curve="convex",
+        interp_method="polynomial"
     )
 
     if plot:
@@ -814,7 +822,7 @@ def weighted_quantiles(values, weights, quantiles=0.5, interpolate=True):
         return sorted_values[np.searchsorted(Sn, quantiles * Sn[-1])]
 
 
-def kernel_weighted_median(*indices):
+def kernel_weighted_median(indices):
     """
     Used for the Ensemble method below.
     """
@@ -840,9 +848,10 @@ def fix_classes(x):
     return x
 
 
-def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
+def evaluate_clusters(sample, matrix, obs, actual: pd.Series, method, precomputed):
     matrix = matrix.to_numpy() if isinstance(matrix, pd.DataFrame) else matrix
     if method == cluster_optics_dbscan:
+        estimator = None
         clusters = cluster_optics_dbscan(
             reachability=precomputed.reachability_,
             core_distances=precomputed.core_distances_,
@@ -850,9 +859,11 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
             eps=sample["eps"],
         )
     elif precomputed is not None:
-        clusters = method(**{**sample, precomputed: "precomputed"}).fit_predict(matrix)
+        estimator = method(**{**sample, precomputed: "precomputed"})
+        clusters = estimator.fit_predict(matrix)
     else:
-        clusters = method(**sample).fit_predict(matrix)
+        estimator = method(**sample)
+        clusters = estimator.fit_predict(matrix)
     clusters = fix_classes(clusters)
     _, counts = np.unique(clusters, return_counts=True)
     counts_dict = dict(zip(*np.unique(counts, return_counts=True)))
@@ -872,18 +883,18 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
         "clusters": clusters,
         "counts_dict": counts_dict,
     }
-    # NOTE: These metrics are not supported per se for precomputed distances,
-    # but they appear to work fine.
+    if hasattr(estimator, "bic"):
+        out["BIC"] = estimator.bic(matrix)
     try:
-        db = davies_bouldin_score(matrix, clusters, metric="minkowski", p=1)
+        db = davies_bouldin_score(obs, clusters, metric="minkowski", p=1)
     except ValueError:
         db = np.nan
     try:
-        ch = calinski_harabasz_score(matrix, clusters)
+        ch = calinski_harabasz_score(obs, clusters)
     except ValueError:
         ch = np.nan
-    di = dunn([matrix[clusters == i] for i in np.unique(clusters)],
-              metric="minkowski", p=1)
+    di = dunn_score([obs[clusters == i] for i in np.unique(clusters)],
+                    metric="minkowski", p=1)
     out |= {"DaviesBouldin": db, "CalinskiHarabasz": ch, "Dunn": di}
     if actual is not None:
         out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
@@ -929,14 +940,18 @@ def sample_params(
         plot_corr=False,
         **kwargs
 ):
-    if isinstance(matrix, pd.DataFrame):
+    if precomputed is None:
         matrix = simple_preprocess(matrix)
+        obs = df
+    else:
+        obs = reconstruct_observations(matrix)
     # do grid search to get best parameters
     if use_mp:
         results = process_map(
             partial(
                 evaluate_clusters,
                 matrix=matrix,
+                obs=obs,
                 actual=actual,
                 method=method,
                 precomputed=precomputed,
@@ -946,7 +961,7 @@ def sample_params(
         )
     else:
         results = [
-            evaluate_clusters(sample, matrix, actual, method, precomputed)
+            evaluate_clusters(sample, matrix, obs, actual, method, precomputed)
             for sample in tqdm(samples)
         ]
     df_results = pd.DataFrame(
@@ -960,54 +975,68 @@ def sample_params(
     # do NOT smooth the extrinsic metrics!!!
     for col in df_results.columns:
         if col not in ("AdjRandIndex", "AdjMutualInfo", "Combined"):
-            df_results[col] = gaussian_filter1d(df_results[col], 1)
+            df_results[col] = gaussian_filter1d(df_results[col], 1, mode="nearest")
 
-    def get_peaks(x):
-        peaks, _ = find_peaks(x)
-        return peaks[np.argmax(x[peaks])] if peaks.size else -1
-
-    amax_dabo = get_peaks(-df_results.DaviesBouldin)
-    amax_caha = get_peaks(df_results.CalinskiHarabasz)
-    amax_dunn = get_peaks(df_results.Dunn)
-    amax_silh = get_peaks(df_results.Silhouette)
-    amax_nice = get_peaks(df_results.Niceness)
-    amax_neat = get_peaks(df_results.Neatness)
-    amax_gini = get_peaks(df_results.GiniCoeff)
     if elbow is not None:
         if precomputed is not None:
             kwargs["metric"] = "precomputed"
-        elbow = get_elbow(matrix, **kwargs)
+        elbow = get_elbow(matrix, obs.shape[1] + 1, **kwargs)
         if elbow is None:
             elbow_x = None
         else:
             elbow_x = np.argmin(np.abs(np.array([x[param] for x in samples]) - elbow))
     else:
         elbow_x = None
-    args = (
-            [amax_dabo, amax_caha, amax_dunn, amax_silh, amax_gini, amax_nice, amax_neat]
-            + ([elbow_x] if elbow is not None else [])
-    )
-    ensemble = kernel_weighted_median(*args)
+
+    df_results["Elbow"] = 0
+    if elbow_x is not None:
+        df_results["Elbow"].iloc[elbow_x] = 1
+
+    print(df_results.columns)
+
+    def get_peaks(x):
+        peaks, _ = find_peaks(x)
+        return peaks[np.argmax(x[peaks])] if peaks.size else -1
+
+    if "BIC" in df_results.columns:
+        bic = get_peaks(-df_results.BIC)
+    else:
+        bic = None
+    kwds = pd.Series(dict(DaviesBouldin=get_peaks(-df_results.DaviesBouldin),
+                          CalinskiHarabasz=get_peaks(df_results.CalinskiHarabasz),
+                          Dunn=get_peaks(df_results.Dunn),
+                          Silhouette=get_peaks(df_results.Silhouette),
+                          GiniCoeff=get_peaks(df_results.GiniCoeff),
+                          Niceness=get_peaks(df_results.Niceness),
+                          Neatness=get_peaks(df_results.Neatness)))
+    if elbow_x is not None:
+        kwds["Elbow"] = elbow_x
+    if bic is not None:
+        kwds["BIC"] = bic
+    ensemble = kernel_weighted_median(kwds)
     if actual is None:
         best = ensemble
+        results_table = None
     else:
         max_muti = np.max(df_results.AdjMutualInfo)
         max_rand = np.max(df_results.AdjRandIndex)
         max_combo = np.max(df_results.Combined)
         indices = [
-            amax_dabo,
-            amax_caha,
-            amax_dunn,
-            amax_silh,
-            amax_gini,
-            amax_nice,
-            amax_neat,
-            elbow_x,
+            bic if "BIC" in df_results.columns else None,
+            kwds["DaviesBouldin"],
+            kwds["CalinskiHarabasz"],
+            kwds["Dunn"],
+            kwds["Silhouette"],
+            kwds["GiniCoeff"],
+            kwds["Niceness"],
+            kwds["Neatness"],
+            kwds["Elbow"],
             ensemble,
         ]
         results_table = pd.DataFrame(
             {
                 "Metric": [
+                    "BIC",
                     "DaviesBouldin",
                     "CalinskiHarabasz",
                     "Dunn",
@@ -1042,6 +1071,7 @@ def sample_params(
         # plot param vs. metrics
         var = np.array([z["sample"][param] for z in results])
         legend = (
+                (["BIC %0.2f" % df_results.BIC.max()] if "BIC" in df_results.columns else []) +
                 [
                     "DaviesBouldin %0.2f" % df_results.DaviesBouldin.max(),
                     "CalinskiHarabasz %0.2f" % df_results.CalinskiHarabasz.max(),
@@ -1087,7 +1117,7 @@ def sample_params(
                     '-D',
                     c=colors[i],
                     alpha=0.4,
-                    markevery=[args[i]]
+                    markevery=[kwds[col.split()[0]]]
                 )
             elif col == "Elbow":
                 ax.axvline(var[elbow_x], c=colors[i], ls=":", alpha=0.4)
@@ -1103,7 +1133,7 @@ def sample_params(
             elif col in ["AdjRandIndex", "AdjMutualInfo", "Combined"]:
                 ax.plot(var, df_results[col], c=colors[i], alpha=0.4)
             else:
-                ax.plot(var, df_results[col], '-D', c=colors[i], alpha=0.4, markevery=[args[i]])
+                ax.plot(var, df_results[col], '-D', c=colors[i], alpha=0.4, markevery=[kwds[col]])
 
         fig.legend(legend, loc="outside center right")
         plt.title(title)
@@ -1181,7 +1211,7 @@ def optimize_dbscan(
     return df.cluster.to_numpy(), res
 
 
-def optimize_gmm(df, title, actual=None, bayes=False, n_iter=10, use_mp=True):
+def optimize_gmm(df, title, actual=None, bayes=False, n_iter=20, use_mp=True):
     df = df.copy()
 
     if len(df) > 10000:
@@ -1299,14 +1329,13 @@ def optimize_optics(
         clust,
         use_mp,
         title,
-        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
 
 
 def optimize_kmeans(
-        df, title, actual=None, n_iter=10, use_mp=True, precomputed=None, **kwargs
+        df, title, actual=None, n_iter=20, use_mp=True, precomputed=None, **kwargs
 ):
     df = df.copy()
 
@@ -1320,10 +1349,9 @@ def optimize_kmeans(
         samples,
         "n_clusters",
         n_iter,
-        precomputed,
+        None,
         use_mp,
         title,
-        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
@@ -1352,14 +1380,13 @@ def optimize_hdbscan(
         precomputed,
         use_mp,
         title,
-        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
 
 
 def optimize_spectral(
-        df, title, actual=None, n_iter=10, use_mp=True, precomputed=None, **kwargs
+        df, title, actual=None, n_iter=20, use_mp=True, precomputed=None, **kwargs
 ):
     df = df.copy()
 
@@ -1381,7 +1408,6 @@ def optimize_spectral(
         precomputed,
         use_mp,
         title,
-        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
