@@ -19,7 +19,7 @@ from sklearn.metrics import (
     adjusted_rand_score,
     silhouette_score,
     # davies_bouldin_score,
-    # calinski_harabasz_score,
+    calinski_harabasz_score,
     pairwise_distances,
 )
 from sklearn.metrics.cluster._unsupervised import check_number_of_labels
@@ -33,7 +33,7 @@ from tqdm.contrib.concurrent import process_map
 
 # Forked from https://pypi.org/project/gower/
 
-# Everything in this package is geared to use Manhattan distance! :)
+# Everything in this package is geared to use Manhattan distance (except for CH score)! :)
 
 
 def get_cat_features(X):
@@ -382,42 +382,6 @@ def hamming_similarity(df):
 
 
 # Clustering Metrics
-
-
-@validate_params(
-    {
-        "X": ["array-like"],
-        "labels": ["array-like"],
-    },
-    prefer_skip_nested_validation=True,
-)
-def calinski_harabasz_score(X, labels, p):
-    """
-    See scikit-learn's documentation for more information.
-    This version is the same, except it allows for non-euclidean calculations.
-    """
-    X, labels = check_X_y(X, labels)
-    le = LabelEncoder()
-    labels = le.fit_transform(labels)
-
-    n_samples, _ = X.shape
-    n_labels = len(le.classes_)
-
-    check_number_of_labels(n_labels, n_samples)
-
-    extra_disp, intra_disp = 0.0, 0.0
-    mean = np.mean(X, axis=0)
-    for k in range(n_labels):
-        cluster_k = X[labels == k]
-        mean_k = np.mean(cluster_k, axis=0)
-        extra_disp += len(cluster_k) * np.sum(np.power(np.abs(mean_k - mean), p))
-        intra_disp += np.sum(np.power(np.abs(cluster_k - mean_k), p))
-
-    return (
-        1.0
-        if intra_disp == 0.0
-        else extra_disp * (n_samples - n_labels) / (intra_disp * (n_labels - 1.0))
-    )
 
 
 @validate_params(
@@ -918,7 +882,7 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     except ValueError:
         db = np.nan
     try:
-        ch = calinski_harabasz_score(matrix, clusters, p=1)
+        ch = calinski_harabasz_score(matrix, clusters)
     except ValueError:
         ch = np.nan
     di = dunn([matrix[clusters == i] for i in np.unique(clusters)],
