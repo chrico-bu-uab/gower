@@ -511,7 +511,7 @@ def reconstruct_observations(matrix):
     mat = mat.T
     mat = PCA(random_state=42).fit_transform(mat)
     mag = np.abs(mat).max(axis=0)
-    return mat[:, mag > 1e-10]
+    return mat[:, mag > mag.mean()]
 
 
 def get_elbow(X, plot=False, **kwargs):
