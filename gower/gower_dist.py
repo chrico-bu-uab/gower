@@ -500,18 +500,25 @@ def dunn(X, **kwargs):
     return min_separation / largest_diameter
 
 
+def reconstruct_observations(matrix):
+    """
+    methodology from https://stats.stackexchange.com/a/12503/369868
+    """
+    col_mean = matrix.mean(axis=0)
+    assert np.allclose(col_mean, matrix.mean(axis=1))
+    mat = matrix.copy()
+    mat -= col_mean
+    mat = mat.T
+    mat = PCA(random_state=42).fit_transform(mat)
+    mag = np.abs(mat).max(axis=0)
+    return mat[:, mag > mag.mean()]
+
+
 def get_elbow(X, plot=False, **kwargs):
     # estimate k
     if "metric" in kwargs and kwargs["metric"] == "precomputed":
-        # methodology from https://stats.stackexchange.com/a/12503/369868
-        a = X.mean(axis=0)
-        assert np.allclose(a, X.mean(axis=1))
-        m = X.copy()
-        m -= a
-        m = m.T
-        m = PCA(random_state=42).fit_transform(m)
-        m = np.abs(m).max(axis=0)
-        k = (m >= m.mean()).sum() + 1
+        m = reconstruct_observations(X)
+        k = m.shape[1] + 1
     else:
         k = X.shape[1] + 1
 
