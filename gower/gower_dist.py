@@ -19,7 +19,8 @@ from sklearn.metrics import (
     adjusted_rand_score,
     silhouette_score,
     # davies_bouldin_score,
-    calinski_harabasz_score, pairwise_distances,
+    # calinski_harabasz_score,
+    pairwise_distances,
 )
 from sklearn.metrics.cluster._unsupervised import check_number_of_labels
 from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
@@ -390,41 +391,47 @@ def hamming_similarity(df):
     },
     prefer_skip_nested_validation=True,
 )
+def calinski_harabasz_score(X, labels, p):
+    """
+    See scikit-learn's documentation for more information.
+    This version is the same, except it allows for non-euclidean calculations.
+    """
+    X, labels = check_X_y(X, labels)
+    le = LabelEncoder()
+    labels = le.fit_transform(labels)
+
+    n_samples, _ = X.shape
+    n_labels = len(le.classes_)
+
+    check_number_of_labels(n_labels, n_samples)
+
+    extra_disp, intra_disp = 0.0, 0.0
+    mean = np.mean(X, axis=0)
+    for k in range(n_labels):
+        cluster_k = X[labels == k]
+        mean_k = np.mean(cluster_k, axis=0)
+        extra_disp += len(cluster_k) * np.sum(np.power(np.abs(mean_k - mean), p))
+        intra_disp += np.sum(np.power(np.abs(cluster_k - mean_k), p))
+
+    return (
+        1.0
+        if intra_disp == 0.0
+        else extra_disp * (n_samples - n_labels) / (intra_disp * (n_labels - 1.0))
+    )
+
+
+@validate_params(
+    {
+        "X": ["array-like"],
+        "labels": ["array-like"],
+    },
+    prefer_skip_nested_validation=True,
+)
 def davies_bouldin_score(X, labels, **kwargs):
-    """Compute the Davies-Bouldin score.
-
-    The score is defined as the average similarity measure of each cluster with
-    its most similar cluster, where similarity is the ratio of within-cluster
-    distances to between-cluster distances. Thus, clusters which are farther
-    apart and less dispersed will result in a better score.
-
-    The minimum score is zero, with lower values indicating better clustering.
-
-    Read more in the :ref:`User Guide <davies-bouldin_index>`.
-
-    .. versionadded:: 0.20
-
-    Parameters
-    ----------
-    X : array-like of shape (n_samples, n_features)
-        A list of ``n_features``-dimensional data points. Each row corresponds
-        to a single data point.
-
-    labels : array-like of shape (n_samples,)
-        Predicted labels for each sample.
-
-    Returns
-    -------
-    score: float
-        The resulting Davies-Bouldin score.
-
-    References
-    ----------
-    .. [1] Davies, David L.; Bouldin, Donald W. (1979).
-       `"A Cluster Separation Measure"
-       <https://ieeexplore.ieee.org/document/4766909>`__.
-       IEEE Transactions on Pattern Analysis and Machine Intelligence.
-       PAMI-1 (2): 224-227
+    """
+    See scikit-learn's documentation for more information.
+    This version is the same, except it allows keyword arguments to be passed
+    to `pairwise_distances`.
     """
     X, labels = check_X_y(X, labels)
     le = LabelEncoder()
@@ -904,7 +911,7 @@ def evaluate_clusters(sample, matrix, actual: pd.Series, method, precomputed):
     except ValueError:
         db = np.nan
     try:
-        ch = calinski_harabasz_score(matrix, clusters)
+        ch = calinski_harabasz_score(matrix, clusters, 1)
     except ValueError:
         ch = np.nan
     di = dunn([matrix[clusters == i] for i in np.unique(clusters)],
