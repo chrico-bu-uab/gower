@@ -423,26 +423,34 @@ def davies_bouldin_score(X, labels, **kwargs):
     return np.mean(scores)
 
 
-def dunn_score(X, **kwargs):
+def dunn_score(X, func=None, **kwargs):
     """
     Dunn Index for Cluster Validation
     @param X: list of clusters
+    @param func: function or functions to compute distances
     @param kwargs: arguments to pass to cdist
     @return: Dunn Index
     """
+    if func is None:
+        f_diameter, f_separation = np.max, np.min
+    elif callable(func):
+        f_diameter = f_separation = func
+    else:  # assume dictionary
+        f_diameter = func["diameter"]
+        f_separation = func["separation"]
 
-    def f(x, y, g):
+    def get_dist(x, y, f):
         """
         @param x: cluster x's data
         @param y: cluster y's data
-        @param g: function to take of distances between x and y
+        @param f: function to take of distances between x and y
         @return: single distance between x and y
         """
         distances = cdist(x, y, **kwargs)
-        return g(distances)
+        return f(distances)
 
     # compute diameters
-    diameters = np.array([f(x, x, np.max) for x in X])
+    diameters = np.array([get_dist(x, x, f_diameter) for x in X])
     largest_diameter = np.max(diameters)
 
     if not largest_diameter:
@@ -453,7 +461,7 @@ def dunn_score(X, **kwargs):
     n = len(X)
     for i in range(n - 1):
         for j in range(i + 1, n):
-            separation = f(X[i], X[j], np.min)
+            separation = get_dist(X[i], X[j], f_separation)
             if separation < min_separation:
                 min_separation = separation
 
@@ -475,15 +483,15 @@ def reconstruct_observations(matrix, plot=False):
     x_axis = range(1, len(mat) + 1)
     elbow = KneeLocator(
         x_axis,
-        pca.explained_variance_ratio_,
+        pca.explained_variance_,
         curve="convex",
         direction="decreasing",
         interp_method="polynomial"
     )
     if plot:
         plt.xlabel("d")
-        plt.ylabel("Explained Variance Ratio")
-        plt.plot(x_axis, pca.explained_variance_ratio_, "bx-")
+        plt.ylabel("Explained Variance")
+        plt.plot(x_axis, pca.explained_variance_, "bx-")
         plt.plot(x_axis, elbow.Ds_y)
         plt.vlines(elbow.elbow, plt.ylim()[0], plt.ylim()[1], linestyles="--")
         plt.show()
@@ -971,11 +979,6 @@ def sample_params(
             if key not in ["sample", "clusters", "counts_dict"]
         }
     )
-    # smooth results for peak finding and plotting
-    # do NOT smooth the extrinsic metrics!!!
-    for col in df_results.columns:
-        if col not in ("AdjRandIndex", "AdjMutualInfo", "Combined"):
-            df_results[col] = gaussian_filter1d(df_results[col], 1, mode="nearest")
 
     if elbow is not None:
         if precomputed is not None:
@@ -992,7 +995,18 @@ def sample_params(
     if elbow_x is not None:
         df_results["Elbow"].iloc[elbow_x] = 1
 
-    print(df_results.columns)
+    # smooth results for peak finding and plotting
+    # do NOT smooth the extrinsic metrics!!!
+    for col in df_results.columns:
+        if col not in ("AdjRandIndex", "AdjMutualInfo", "Combined"):
+            df_results[col] = gaussian_filter1d(df_results[col], 1, mode="nearest")
+
+    df_res = df_results[[col for col in df_results.columns
+                         if col not in ("AdjRandIndex", "AdjMutualInfo", "Combined")]]
+    df_res /= df_res.std()
+    df_results["Average"] = df_res.mean(axis=1)
+    df_results.Average -= df_results.Average.min()
+    df_results.Average /= df_results.Average.max()
 
     def get_peaks(x):
         peaks, _ = find_peaks(x)
@@ -1008,7 +1022,8 @@ def sample_params(
                           Silhouette=get_peaks(df_results.Silhouette),
                           GiniCoeff=get_peaks(df_results.GiniCoeff),
                           Niceness=get_peaks(df_results.Niceness),
-                          Neatness=get_peaks(df_results.Neatness)))
+                          Neatness=get_peaks(df_results.Neatness),
+                          Average=get_peaks(df_results.Average)))
     if elbow_x is not None:
         kwds["Elbow"] = elbow_x
     if bic is not None:
@@ -1030,7 +1045,8 @@ def sample_params(
             kwds["GiniCoeff"],
             kwds["Niceness"],
             kwds["Neatness"],
-            kwds["Elbow"],
+            kwds["Elbow"] if elbow_x is not None else None,
+            kwds["Average"],
             ensemble,
         ]
         results_table = pd.DataFrame(
@@ -1045,6 +1061,7 @@ def sample_params(
                     "Niceness",
                     "Neatness",
                     "Elbow",
+                    "Average",
                     "Ensemble",
                 ],
                 "AdjMutualInfo": get_data_points(df_results, "AdjMutualInfo", indices),
@@ -1082,7 +1099,7 @@ def sample_params(
                     "Neatness",
                 ]
                 + (["Elbow"] if elbow is not None else [])
-                + ["Ensemble", "Maximizing", "AdjRandIndex", "AdjMutualInfo", "Combined"]
+                + ["Average", "Ensemble", "Maximizing", "AdjRandIndex", "AdjMutualInfo", "Combined"]
         )
         # https://stats.stackexchange.com/a/336149/369868 :)
         colors = [
@@ -1467,7 +1484,7 @@ def optimize_meanshift(df, title, actual=None, n_iter=100, use_mp=True):
 
     samples = [
         {"bandwidth": estimate_bandwidth(df, quantile=z / n_iter)}
-        for z in range(1, n_iter)
+        for z in range(1, n_iter + 1)
     ]
     res = sample_params(
         df, matrix, actual, MeanShift, samples, "bandwidth", n_iter, None, use_mp, title
