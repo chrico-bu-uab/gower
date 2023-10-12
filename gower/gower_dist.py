@@ -507,11 +507,12 @@ def dunn_score(X, func=None, **kwargs):
     return min_separation / largest_diameter
 
 
-def reconstruct_observations(matrix, plot=True):
+def reconstruct_observations(matrix, plot=False):
     """
     methodology loosely based on https://stats.stackexchange.com/a/12503/369868
     """
     assert np.allclose(matrix, matrix.T)
+    assert np.allclose(np.diag(matrix), 0)
     mat = matrix - matrix.mean(axis=0)
     pca = PCA(random_state=42)
     mat = pca.fit_transform(mat.T)
@@ -536,7 +537,7 @@ def reconstruct_observations(matrix, plot=True):
     return mat[:, :elbow_x]
 
 
-def get_elbow(X, k, plot=True, **kwargs):
+def get_elbow(X, k, plot=False, **kwargs):
     """
     See https://stats.stackexchange.com/q/541340
     """
@@ -1092,7 +1093,7 @@ def sample_params(
         results_table.max_muti = max_muti
         results_table.max_rand = max_rand
         results_table.max_combo = max_combo
-        best = np.argmax(df_results.Combined)
+        best = get_peaks(df_results.Combined)
     best_params = results[best]
 
     # assign clusters
@@ -1193,7 +1194,7 @@ def optimize_dbscan(
         df,
         title,
         actual=None,
-        factor=0.5,
+        factor=1.0,
         offset=0.0,
         n_iter=100,
         min_samples=1,
@@ -1282,7 +1283,7 @@ def optimize_agglo(
         df,
         title,
         actual=None,
-        factor=0.5,
+        factor=1.0,
         offset=0.0,
         n_iter=100,
         linkage="average",
@@ -1334,7 +1335,7 @@ def optimize_optics(
         df,
         title,
         actual=None,
-        factor=0.5,
+        factor=1.0,
         offset=0.0,
         n_iter=100,
         use_mp=True,
@@ -1448,7 +1449,7 @@ def optimize_spectral(
     return df.cluster.to_numpy(), res
 
 
-def optimize_birch(df, title, actual=None, n_iter=100, factor=0.5, use_mp=True):
+def optimize_birch(df, title, actual=None, n_iter=100, factor=1.0, use_mp=True):
     df = df.copy()
 
     matrix = df
