@@ -19,7 +19,7 @@ from sklearn.metrics import (
     adjusted_rand_score,
     silhouette_score,
     # davies_bouldin_score,
-    calinski_harabasz_score,
+    # calinski_harabasz_score,
     pairwise_distances,
 )
 from sklearn.metrics.cluster._unsupervised import check_number_of_labels
@@ -33,7 +33,7 @@ from tqdm.contrib.concurrent import process_map
 
 # Forked from https://pypi.org/project/gower/
 
-# Everything in this package is geared to use Manhattan distance (except for CH score)! :)
+# Everything in this package is geared to use Manhattan distance! :)
 
 
 def get_cat_features(X):
@@ -391,11 +391,46 @@ def hamming_similarity(df):
     },
     prefer_skip_nested_validation=True,
 )
+def calinski_harabasz_score(X, labels, p, **kwargs):
+    """
+    See scikit-learn's documentation for more information.
+    This version generalizes to any p-norm.
+    """
+    X, labels = check_X_y(X, labels)
+    le = LabelEncoder()
+    labels = le.fit_transform(labels)
+
+    n_samples, _ = X.shape
+    n_labels = len(le.classes_)
+
+    check_number_of_labels(n_labels, n_samples)
+
+    extra_disp, intra_disp = 0.0, 0.0
+    mean = np.mean(X, axis=0)
+    for k in range(n_labels):
+        cluster_k = X[labels == k]
+        mean_k = np.mean(cluster_k, axis=0)
+        extra_disp += len(cluster_k) * np.linalg.norm(mean_k - mean, p) ** p
+        intra_disp += np.linalg.norm(cluster_k - mean_k, p) ** p
+
+    return (
+        1.0
+        if intra_disp == 0.0
+        else extra_disp * (n_samples - n_labels) / (intra_disp * (n_labels - 1.0))
+    )
+
+
+@validate_params(
+    {
+        "X": ["array-like"],
+        "labels": ["array-like"],
+    },
+    prefer_skip_nested_validation=True,
+)
 def davies_bouldin_score(X, labels, **kwargs):
     """
     See scikit-learn's documentation for more information.
-    This version is the same, except it allows keyword arguments to be passed
-    to `pairwise_distances`.
+    This version allows keyword arguments to be passed to `pairwise_distances`.
     """
     X, labels = check_X_y(X, labels)
     le = LabelEncoder()
@@ -472,7 +507,7 @@ def dunn_score(X, func=None, **kwargs):
     return min_separation / largest_diameter
 
 
-def reconstruct_observations(matrix, plot=False):
+def reconstruct_observations(matrix, plot=True):
     """
     methodology loosely based on https://stats.stackexchange.com/a/12503/369868
     """
@@ -481,24 +516,27 @@ def reconstruct_observations(matrix, plot=False):
     pca = PCA(random_state=42)
     mat = pca.fit_transform(mat.T)
     x_axis = range(1, len(mat) + 1)
+    y_axis = pca.explained_variance_
     elbow = KneeLocator(
         x_axis,
-        pca.explained_variance_,
+        y_axis,
         curve="convex",
         direction="decreasing",
         interp_method="polynomial"
     )
+    elbow_x = elbow.elbow
     if plot:
         plt.xlabel("d")
         plt.ylabel("Explained Variance")
-        plt.plot(x_axis, pca.explained_variance_, "bx-")
+        plt.plot(x_axis, y_axis, "bx-")
         plt.plot(x_axis, elbow.Ds_y)
-        plt.vlines(elbow.elbow, plt.ylim()[0], plt.ylim()[1], linestyles="--")
+        ylim = plt.ylim()
+        plt.vlines(elbow_x, ylim[0], ylim[1], linestyles="--")
         plt.show()
-    return mat[:, :elbow.elbow]
+    return mat[:, :elbow_x]
 
 
-def get_elbow(X, k, plot=False, **kwargs):
+def get_elbow(X, k, plot=True, **kwargs):
     """
     See https://stats.stackexchange.com/q/541340
     """
@@ -521,7 +559,8 @@ def get_elbow(X, k, plot=False, **kwargs):
         plt.ylabel("Distance")
         plt.plot(x_axis, distances, "bx-")
         plt.plot(x_axis, elbow.Ds_y)
-        plt.vlines(elbow.elbow, plt.ylim()[0], plt.ylim()[1], linestyles="--")
+        ylim = plt.ylim()
+        plt.vlines(elbow.elbow, ylim[0], ylim[1], linestyles="--")
         plt.show()
 
     return elbow.elbow_y
@@ -804,11 +843,6 @@ def tidiness(cluster_sizes):
 
 
 def get_closest_points(x, y):
-    """
-    The idea here was to find the closest points between two sets of estimates
-    (for instance, classical methods versus niceness, etc.) for a given
-    clustering hyperparameter (say epsilon).
-    """
     d = np.abs(x[:, np.newaxis] - y)
     c = np.argwhere(d == np.min(d))
     return round((np.mean(x[c[:, 0]]) + np.mean(y[c[:, 1]])) / 2)
@@ -845,14 +879,14 @@ def kernel_weighted_median(indices):
 
 
 def fix_classes(x):
-    if isinstance(x, np.ndarray):
+    if isinstance(x, (np.ndarray, pd.Series)):
         x = x.tolist()
     x = [i for i in x if i is not None]
     if "-1" in x:
         x = [int(i) for i in x]
     if -1 in x:
         assert all(i >= -1 for i in x), x
-        x = [i for i in x if i != -1] + list(range(-1, -1 - list(x).count(-1), -1))
+        x = [i for i in x if i != -1] + list(range(-1, -1 - x.count(-1), -1))
     return x
 
 
@@ -891,26 +925,24 @@ def evaluate_clusters(sample, matrix, obs, actual: pd.Series, method, precompute
         "clusters": clusters,
         "counts_dict": counts_dict,
     }
+    kwargs = dict(metric="minkowski", p=1)
     if hasattr(estimator, "bic"):
         out["BIC"] = estimator.bic(matrix)
     try:
-        db = davies_bouldin_score(obs, clusters, metric="minkowski", p=1)
+        db = davies_bouldin_score(obs, clusters, **kwargs)
     except ValueError:
         db = np.nan
     try:
-        ch = calinski_harabasz_score(obs, clusters)
+        ch = calinski_harabasz_score(obs, clusters, **kwargs)
     except ValueError:
         ch = np.nan
-    di = dunn_score([obs[clusters == i] for i in np.unique(clusters)],
-                    metric="minkowski", p=1)
+    di = dunn_score([obs[clusters == i] for i in np.unique(clusters)], **kwargs)
     out |= {"DaviesBouldin": db, "CalinskiHarabasz": ch, "Dunn": di}
     if actual is not None:
         out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
         out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, clusters)
-        gini_actual = gini_coefficient(np.unique(actual, return_counts=True)[1])
-        out["Combined"] = (1 - gini_actual) * out[
-            "AdjRandIndex"
-        ] + gini_actual * out["AdjMutualInfo"]
+        g = gini_coefficient(np.unique(actual, return_counts=True)[1])
+        out["Combined"] = (1 - g) * out["AdjRandIndex"] + g * out["AdjMutualInfo"]
     return out
 
 
@@ -921,7 +953,7 @@ def simple_preprocess(df):
     df = df.copy()
     df -= df.min()
     df /= df.max()
-    df.fillna(1, inplace=True)
+    df.fillna(0.5, inplace=True)
     weight = df.apply(get_num_weight)
     return df * weight / weight.sum()
 
@@ -991,22 +1023,11 @@ def sample_params(
     else:
         elbow_x = None
 
-    df_results["Elbow"] = 0
-    if elbow_x is not None:
-        df_results["Elbow"].iloc[elbow_x] = 1
-
     # smooth results for peak finding and plotting
     # do NOT smooth the extrinsic metrics!!!
     for col in df_results.columns:
-        if col not in ("AdjRandIndex", "AdjMutualInfo", "Combined"):
+        if col not in ["AdjMutualInfo", "AdjRandIndex", "Combined"]:
             df_results[col] = gaussian_filter1d(df_results[col], 1, mode="nearest")
-
-    df_res = df_results[[col for col in df_results.columns
-                         if col not in ("AdjRandIndex", "AdjMutualInfo", "Combined")]]
-    df_res /= df_res.std()
-    df_results["Average"] = df_res.mean(axis=1)
-    df_results.Average -= df_results.Average.min()
-    df_results.Average /= df_results.Average.max()
 
     def get_peaks(x):
         peaks, _ = find_peaks(x)
@@ -1022,8 +1043,7 @@ def sample_params(
                           Silhouette=get_peaks(df_results.Silhouette),
                           GiniCoeff=get_peaks(df_results.GiniCoeff),
                           Niceness=get_peaks(df_results.Niceness),
-                          Neatness=get_peaks(df_results.Neatness),
-                          Average=get_peaks(df_results.Average)))
+                          Neatness=get_peaks(df_results.Neatness)))
     if elbow_x is not None:
         kwds["Elbow"] = elbow_x
     if bic is not None:
@@ -1046,7 +1066,6 @@ def sample_params(
             kwds["Niceness"],
             kwds["Neatness"],
             kwds["Elbow"] if elbow_x is not None else None,
-            kwds["Average"],
             ensemble,
         ]
         results_table = pd.DataFrame(
@@ -1061,7 +1080,6 @@ def sample_params(
                     "Niceness",
                     "Neatness",
                     "Elbow",
-                    "Average",
                     "Ensemble",
                 ],
                 "AdjMutualInfo": get_data_points(df_results, "AdjMutualInfo", indices),
@@ -1099,7 +1117,7 @@ def sample_params(
                     "Neatness",
                 ]
                 + (["Elbow"] if elbow is not None else [])
-                + ["Average", "Ensemble", "Maximizing", "AdjRandIndex", "AdjMutualInfo", "Combined"]
+                + ["Ensemble", "Maximizing", "AdjRandIndex", "AdjMutualInfo", "Combined"]
         )
         # https://stats.stackexchange.com/a/336149/369868 :)
         colors = [
