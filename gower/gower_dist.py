@@ -193,7 +193,7 @@ def gower_matrix(
     if np.any(knn):
         if isinstance(knn, bool):
             knn = np.ones(num_cols, dtype=bool)
-        n_knn = math.ceil(math.sqrt(x_n_rows))
+        n_knn = round(math.sqrt(x_n_rows))
         for col in np.where(knn)[0]:
             values = Z_num.iloc[:, col].dropna().to_numpy()
             knn_models.append(
