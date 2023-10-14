@@ -567,6 +567,46 @@ def get_elbow(X, k, plot=False, **kwargs):
     return elbow.elbow_y
 
 
+def all_possible_clusters(n, memo=None):
+    """
+    *** This function was (mostly) written by GitHub Copilot and ChatGPT. ***
+    *** See also s.o. 24582741/5295786 ***
+
+    This function returns a list of all possible clusterings given a number of
+    elements to cluster. The clusterings are returned as a list of lists of
+    integers. The integers are the element counts per cluster.
+
+    For example, if there are 3 elements, then the possible clusterings are:
+    [[1, 1, 1], [1, 2], [3]]
+
+    This function is not recommended for n > 20.
+    """
+    if n == 1:
+        return [[1]]
+    if memo is None:
+        memo = {}
+    if n in memo:
+        return memo[n]
+    out = []
+    for i in range(1, n):
+        out.extend(sorted([i] + j) for j in all_possible_clusters(n - i, memo))
+    out.append([n])
+    out = [c for i, c in enumerate(out) if c not in out[:i]]
+    memo[n] = out
+    return out
+
+
+def transpose_counts(x):
+    x = list(x)
+    y = []
+    while x:
+        if len(x) == 1:
+            return y + [1] * x[0]
+        y.append(len(x))
+        x = [i - 1 for i in x if i > 1]
+    return y
+
+
 def nice_helper(n):
     r = math.sqrt(n)
     r_floor = int(r)
