@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from dython.nominal import associations  # , correlation_ratio
+from genieclust import Genie
 from kneed import KneeLocator
 from scipy.ndimage import gaussian_filter1d
 from scipy.signal import find_peaks
@@ -1064,15 +1065,11 @@ def sample_params(
     else:
         elbow_x = None
 
-    # smooth results for peak finding and plotting
-    # do NOT smooth the extrinsic metrics!!!
-    for col in df_results.columns:
-        if col not in ["AdjMutualInfo", "AdjRandIndex", "Combined"]:
-            df_results[col] = gaussian_filter1d(df_results[col], 1, mode="nearest")
-
     def get_peaks(x):
-        peaks, _ = find_peaks(x)
-        return peaks[np.argmax(x[peaks])] if peaks.size else -1
+        peaks, _ = find_peaks(gaussian_filter1d(x, 1, mode="nearest"))
+        if not peaks.size:
+            peaks, _ = find_peaks(x)
+        return peaks[np.argmax(x[peaks])] if peaks.size else np.argmax(x)
 
     if "BIC" in df_results.columns:
         bic = get_peaks(-df_results.BIC)
@@ -1133,7 +1130,8 @@ def sample_params(
         results_table.max_muti = max_muti
         results_table.max_rand = max_rand
         results_table.max_combo = max_combo
-        best = get_peaks(df_results.Combined)
+        best = (np.argmax(df_results.Combined) + len(df_results) - 1 -
+                np.argmax(df_results.Combined[::-1])) // 2
     best_params = results[best]
 
     # assign clusters
@@ -1530,7 +1528,6 @@ def optimize_affinity(
         precomputed,
         use_mp,
         title,
-        elbow=True,
     )
 
     return df.cluster.to_numpy(), res
@@ -1547,6 +1544,20 @@ def optimize_meanshift(df, title, actual=None, n_iter=100, use_mp=True):
     ]
     res = sample_params(
         df, matrix, actual, MeanShift, samples, "bandwidth", n_iter, None, use_mp, title
+    )
+
+    return df.cluster.to_numpy(), res
+
+
+def optimize_genie(df, title, actual=None, n_iter=100, use_mp=True, **kwargs):
+    df = df.copy()
+
+    matrix = df
+
+    samples = [{"n_clusters": z} for z in range(2, n_iter + 2)]
+    res = sample_params(
+        df, matrix, actual, Genie, samples, "n_clusters", n_iter,
+        None, use_mp, title
     )
 
     return df.cluster.to_numpy(), res
