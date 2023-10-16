@@ -1549,7 +1549,9 @@ def optimize_meanshift(df, title, actual=None, n_iter=100, use_mp=True):
     return df.cluster.to_numpy(), res
 
 
-def optimize_genie(df, title, actual=None, n_iter=100, use_mp=True, **kwargs):
+def optimize_genie(df, title, actual=None, n_iter=50, use_mp=True, **kwargs):
+    n_iter = min(len(df) - 1, n_iter)
+
     df = df.copy()
 
     matrix = df
