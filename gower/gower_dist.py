@@ -1556,7 +1556,7 @@ def optimize_genie(df, title, actual=None, n_iter=200, use_mp=True, **kwargs):
 
     matrix = df
 
-    samples = [{"n_clusters": z} for z in range(2, n_iter + 2)]
+    samples = [{"n_clusters": z, "affinity": "l1"} for z in range(2, n_iter + 2)]
     res = sample_params(
         df, matrix, actual, Genie, samples, "n_clusters", n_iter,
         None, use_mp, title
