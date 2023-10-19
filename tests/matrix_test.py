@@ -65,17 +65,17 @@ def test_answer():
     Xd.iloc[:-1, -1] = gm.fit_predict(aaa[:-1, :-1])
 
     i = 65
-    dfs = []
     for col in ["uniform", "auto", "R", "h_t", "knn"]:
         Xd[col] = Xd[col].apply(lambda x: chr(i + x) if x is not None else None)
         i += len(Xd[col].dropna().unique())
-        dfs.append(hamming_similarity(Xd[col].dropna()))
 
     for col in ["uniform", "auto", "R", "h_t", "knn"]:
         for col2 in ["uniform", "auto", "R", "h_t", "knn"]:
             if col == col2:
                 continue
-            print(adjusted_mutual_info_score(Xd.iloc[:-1][col], Xd.iloc[:-1][col2]))
-            print(adjusted_rand_score(Xd.iloc[:-1][col], Xd.iloc[:-1][col2]))
+            m = adjusted_mutual_info_score(Xd.iloc[:-1][col], Xd.iloc[:-1][col2])
+            r = adjusted_rand_score(Xd.iloc[:-1][col], Xd.iloc[:-1][col2])
+            assert m < 1, (col, col2, m)
+            assert r < 1, (col, col2, r)
 
     print(Xd.sort_values(["uniform", "auto", "R", "h_t", "knn"]))
