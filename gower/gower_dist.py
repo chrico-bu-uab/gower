@@ -1234,7 +1234,7 @@ def optimize_dbscan(
         actual=None,
         factor=1.0,
         offset=0.0,
-        n_iter=100,
+        n_iter=200,
         min_samples=1,
         precomputed=None,
         use_mp=True,
@@ -1323,7 +1323,7 @@ def optimize_agglo(
         actual=None,
         factor=1.0,
         offset=0.0,
-        n_iter=100,
+        n_iter=200,
         linkage="average",
         precomputed=None,
         use_mp=True,
@@ -1375,7 +1375,7 @@ def optimize_optics(
         actual=None,
         factor=1.0,
         offset=0.0,
-        n_iter=100,
+        n_iter=200,
         use_mp=True,
         min_samples=1,
         metric="minkowski",
@@ -1432,7 +1432,7 @@ def optimize_kmeans(
 
 
 def optimize_hdbscan(
-        df, title, actual=None, n_iter=100, use_mp=True, precomputed=None, **kwargs
+        df, title, actual=None, n_iter=200, use_mp=True, precomputed=None, **kwargs
 ):
     df = df.copy()
 
@@ -1487,7 +1487,7 @@ def optimize_spectral(
     return df.cluster.to_numpy(), res
 
 
-def optimize_birch(df, title, actual=None, n_iter=100, factor=1.0, use_mp=True):
+def optimize_birch(df, title, actual=None, n_iter=200, factor=1.0, use_mp=True):
     df = df.copy()
 
     matrix = df
@@ -1504,7 +1504,7 @@ def optimize_birch(df, title, actual=None, n_iter=100, factor=1.0, use_mp=True):
 
 
 def optimize_affinity(
-        df, title, actual=None, n_iter=100, use_mp=True, precomputed=None, **kwargs
+        df, title, actual=None, n_iter=200, use_mp=True, precomputed=None, **kwargs
 ):
     df = df.copy()
 
@@ -1533,7 +1533,7 @@ def optimize_affinity(
     return df.cluster.to_numpy(), res
 
 
-def optimize_meanshift(df, title, actual=None, n_iter=100, use_mp=True):
+def optimize_meanshift(df, title, actual=None, n_iter=200, use_mp=True):
     df = df.copy()
 
     matrix = df
@@ -1549,7 +1549,7 @@ def optimize_meanshift(df, title, actual=None, n_iter=100, use_mp=True):
     return df.cluster.to_numpy(), res
 
 
-def optimize_genie(df, title, actual=None, n_iter=50, use_mp=True, **kwargs):
+def optimize_genie(df, title, actual=None, n_iter=200, use_mp=True, **kwargs):
     n_iter = min(len(df) - 1, n_iter)
 
     df = df.copy()
