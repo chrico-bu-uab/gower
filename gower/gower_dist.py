@@ -130,6 +130,10 @@ def gower_matrix(
     cat_features : array-like, optional
         A 1D array of boolean values indicating whether a column is categorical.
         If None, then `cat_features` is set to the result of `get_cat_features`.
+    cat_nans : array-like, optional
+        A 1D array of integer values indicating the number of unique values in
+        each categorical column. This is used to determine the distance between
+        two rows when one or more categorical columns are NaN.
     circular_features : array-like, optional
         A 1D array of integer values indicating the periodicities of columns.
         If None, then `circular_features` is set to zeros.
