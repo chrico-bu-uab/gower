@@ -1,9 +1,3 @@
-<!-- badges: start -->
-[![Build Status](https://travis-ci.com/wwwjk366/gower.svg?branch=master)](https://travis-ci.com/wwwjk366/gower)
-[![PyPI version](https://badge.fury.io/py/gower.svg)](https://pypi.org/project/gower/)
-[![Downloads](https://pepy.tech/badge/gower/month)](https://pepy.tech/project/gower/month)
-<!-- badges: end -->
-
 # Introduction
 
 ```
@@ -19,62 +13,37 @@ pip install -e gower
 pip install gower
 ```
 
-## Generate some data
+## Generate some data and compute the Gower distance matrix
 
 ```python
-import numpy as np
 import pandas as pd
 import gower
 
-Xd=pd.DataFrame({'age':[21,21,19, 30,21,21,19,30,None],
-'gender':['M','M','N','M','F','F','F','F',None],
-'civil_status':['MARRIED','SINGLE','SINGLE','SINGLE','MARRIED','SINGLE','WIDOW','DIVORCED',None],
-'salary':[3000.0,1200.0 ,32000.0,1800.0 ,2900.0 ,1100.0 ,10000.0,1500.0,None],
-'has_children':[1,0,1,1,1,0,0,1,None],
-'available_credit':[2200,100,22000,1100,2000,100,6000,2200,None]})
-Yd = Xd.iloc[1:3,:]
-X = np.asarray(Xd)
-Y = np.asarray(Yd)
+Xd = pd.DataFrame(
+    {
+        "age": [19, 30, 21, 30, 19, 30, 21, 30, 19, 30],
+        "gender": ["M", "M", "N", "M", "F", "F", "F", "F", None, None],
+        "civil_status": ["MARRIED", "SINGLE", "SINGLE", "SINGLE", "MARRIED",
+                         "SINGLE", "WIDOW", "DIVORCED", "DIVORCED", "MARRIED"],
+        "salary": [3000.0, 1200.0, 32000.0, 1800.0, 2900.0, 1100.0, 10000.0,
+                   1500.0, 1200.0, None],
+        "has_children": [1, 0, 1, 1, 1, 0, 0, 1, 1, None],
+        "available_credit": [22000, 100, 2200, None, 2000, 100, 6000, 2200, 0, None],
+        "default_rate": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+        "balance": [10, None, 9, 15, 5, 0, 8, 2, None, None],
+        "day_of_week": [1, 5, 1, 1, 6, 1, 3, 1, 2, None],
+    }
+)
 
+gower.gower_matrix(Xd)
 ```
-
-## Find the distance matrix
-
-```python
-gower.gower_matrix(X)
-```
-
-
-
-
-    array([[0.        , 0.3058583 , 0.68839877, 0.29736742, 0.13945927,
-            0.4434072 , 0.52530207, 0.42574698,        nan],
-           [0.3058583 , 0.        , 0.72049697, 0.29239914, 0.44015913,
-            0.1375489 , 0.42052023, 0.57465973,        nan],
-           [0.68839877, 0.72049697, 0.        , 0.71200609, 0.69097799,
-            0.72116582, 0.71061689, 0.84038565,        nan],
-           [0.29736742, 0.29239914, 0.71200609, 0.        , 0.43166825,
-            0.42994804, 0.68578945, 0.28627369,        nan],
-           [0.13945927, 0.44015913, 0.69097799, 0.43166825, 0.        ,
-            0.30394793, 0.39100125, 0.29010845,        nan],
-           [0.4434072 , 0.1375489 , 0.72116582, 0.42994804, 0.30394793,
-            0.        , 0.28430903, 0.43844853,        nan],
-           [0.52530207, 0.42052023, 0.71061689, 0.68578945, 0.39100125,
-            0.28430903, 0.        , 0.5404089 ,        nan],
-           [0.42574698, 0.57465973, 0.84038565, 0.28627369, 0.29010845,
-            0.43844853, 0.5404089 , 0.        ,        nan],
-           [       nan,        nan,        nan,        nan,        nan,
-                   nan,        nan,        nan,        nan]])
-
-
-## Find Top n results
-
-```python
-gower.gower_topn(Xd.iloc[0:2,:], data_y=Xd.iloc[:,])
-```
-
-
-
-
-    {'index': array([0, 4, 3, 1, 7]),
-     'values': array([0.        , 0.13945927, 0.29736742, 0.3058583 , 0.42574698])}
+    [[0.     0.4766 0.4287 0.2789 0.3715 0.6697 0.5685 0.5841 0.4987 0.4855]
+     [0.4766 0.     0.4548 0.3535 0.4507 0.3056 0.438  0.5051 0.5416 0.4886]
+     [0.4287 0.4548 0.     0.3987 0.4037 0.5354 0.4882 0.5173 0.463  0.4771]
+     [0.2789 0.3535 0.3987 0.     0.4289 0.4341 0.5503 0.4148 0.5017 0.4583]
+     [0.3715 0.4507 0.4037 0.4289 0.     0.3878 0.3753 0.3034 0.311  0.4212]
+     [0.6697 0.3056 0.5354 0.4341 0.3878 0.     0.3385 0.2217 0.4868 0.4791]
+     [0.5685 0.438  0.4882 0.5503 0.3753 0.3385 0.     0.3994 0.3842 0.3491]
+     [0.5841 0.5051 0.5173 0.4148 0.3034 0.2217 0.3994 0.     0.2695 0.399 ]
+     [0.4987 0.5416 0.463  0.5017 0.311  0.4868 0.3842 0.2695 0.     0.3947]
+     [0.4855 0.4886 0.4771 0.4583 0.4212 0.4791 0.3491 0.399  0.3947 0.    ]]

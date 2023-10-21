@@ -185,7 +185,7 @@ def gower_matrix(
             ].astype(float)
     Z_num -= Z_num.min()
     Z_num /= Z_num.max()
-    Z_num.fillna(1, inplace=True)
+    Z_num.fillna(0.5, inplace=True)
 
     num_cols = Z_num.shape[1]
 
@@ -211,7 +211,7 @@ def gower_matrix(
     # weights
 
     if weight_cir is None:
-        weight_cir = np.ones(cir_mask.sum()) * np.sqrt(periods // 2)
+        weight_cir = np.ones(cir_mask.sum())
 
     if (
             isinstance(weight_cat, str)
@@ -238,7 +238,7 @@ def gower_matrix(
             ]
     weight_num = np.array(weight_num)
 
-    # print(weight_cat, weight_num, weight_cir)
+    print(weight_cat, weight_num, weight_cir)
     weight_sum = weight_cat.sum() + weight_num.sum() + weight_cir.sum()
 
     # distance matrix
@@ -296,6 +296,9 @@ def gower_matrix(
 
     max_distance = np.nanmax(out)
     assert math.isclose(max_distance, 1) or (max_distance < 1), max_distance
+
+    # zero out diagonal in case any categorical columns contain nans
+    np.fill_diagonal(out, 0)
 
     return out
 
@@ -358,23 +361,6 @@ def compute_with_gower_get(
 
     sums = np.add(np.add(sum_cat, sum_num), sum_cir)
     return np.divide(sums, weight_sum)
-
-
-def smallest_indices(ary, n):
-    """Returns the n smallest indices from a numpy array."""
-    flat = np.nan_to_num(ary.flatten(), nan=999)
-    indices = np.argpartition(-flat, -n)[-n:]
-    indices = indices[np.argsort(flat[indices])]
-    values = flat[indices]
-    return {"index": indices, "values": values}
-
-
-def gower_topn(data_x, n=5, **kwargs):
-    if data_x.shape[0] >= 2:
-        TypeError("Only support `data_x` of 1 row. ")
-    dm = gower_matrix(data_x, **kwargs)
-
-    return smallest_indices(np.nan_to_num(dm[0], nan=1), n)
 
 
 def hamming_similarity(df):
@@ -934,13 +920,21 @@ def evaluate_clusters(sample, matrix, obs, actual: pd.Series, method, precompute
 # Cluster optimization
 
 
-def simple_preprocess(df):
+def gower_like_preprocess(df):
     df = df.copy()
     df -= df.min()
     df /= df.max()
     df.fillna(0.5, inplace=True)
     weight = df.apply(get_num_weight)
     return df * weight / weight.sum()
+
+
+def euclidean_preprocess(df):
+    df = df.copy()
+    df -= df.mean()
+    df /= df.std()
+    df.fillna(0, inplace=True)
+    return df
 
 
 def get_data_points(df_results, column, indices):
@@ -966,7 +960,7 @@ def sample_params(
         **kwargs
 ):
     if precomputed is None:
-        matrix = simple_preprocess(matrix)
+        matrix = gower_like_preprocess(matrix)
         obs = df
     else:
         obs = reconstruct_observations(matrix)
