@@ -105,6 +105,7 @@ def gower_matrix(
         data_x,
         data_y=None,
         cat_features=None,
+        cat_nans=None,
         circular_features=None,
         weight_cat=None,
         weight_cir=None,
@@ -172,6 +173,11 @@ def gower_matrix(
         cat_features = get_cat_features(X)
     else:
         cat_features = np.array(cat_features)
+
+    if cat_nans is None:
+        cat_nans = X.loc[:, cat_features].apply(lambda x: len(x.unique())).to_numpy()
+    else:
+        cat_nans = np.array(cat_nans)
 
     if circular_features is None:
         circular_features = np.zeros(x_n_cols, dtype=bool)
@@ -272,6 +278,7 @@ def gower_matrix(
         X_num=X_num,
         Y_cat=Y_cat,
         Y_num=Y_num,
+        cat_nans=cat_nans,
         weight_cat=weight_cat,
         weight_cir=weight_cir,
         weight_num=weight_num,
@@ -311,6 +318,7 @@ def compute_with_gower_get(
     X_num,
     Y_cat,
     Y_num,
+    cat_nans,
     weight_cat,
     weight_cir,
     weight_num,
@@ -327,20 +335,23 @@ def compute_with_gower_get(
 
     # categorical columns
     xi_cat = X_cat.iloc[i, :]
-    xj_cat = Y_cat.iloc[j_start:y_n_rows, :]
+    xj_cat = Y_cat.iloc[j_start:, :]
     sij_cat = np.where(xi_cat == xj_cat, np.zeros_like(xi_cat), np.ones_like(xi_cat))
+    is_nan = lambda a: a.apply(lambda b: b != b).to_numpy()[0]
+    mask = is_nan(xi_cat) | is_nan(xj_cat)
+    sij_cat[:, mask] = sij_cat[:, mask] / cat_nans[mask]
     sum_cat = np.multiply(weight_cat, sij_cat).sum(axis=1)
 
     # circular columns
     xi_cir = X_cir.iloc[i, :]
-    xj_cir = Y_cir.iloc[j_start:y_n_rows, :]
+    xj_cir = Y_cir.iloc[j_start:, :]
     sij_cir = np.absolute(xi_cir - xj_cir)
     sij_cir = np.minimum(sij_cir, periods - sij_cir) / (periods // 2)
     sum_cir = np.multiply(weight_cir, sij_cir).sum(axis=1)
 
     # numerical columns
     xi_num = X_num.iloc[i, :]
-    xj_num = Y_num.iloc[j_start:y_n_rows, :]
+    xj_num = Y_num.iloc[j_start:, :]
     abs_delta = np.absolute(xi_num - xj_num)
     abs_delta = np.maximum(abs_delta - h_t, np.zeros_like(abs_delta))
     xi_num = xi_num.to_numpy()
