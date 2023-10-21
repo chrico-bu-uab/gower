@@ -597,17 +597,6 @@ def all_possible_clusters(n, memo=None):
     return out
 
 
-def transpose_counts(x):
-    x = list(x)
-    y = []
-    while x:
-        if len(x) == 1:
-            return y + [1] * x[0]
-        y.append(len(x))
-        x = [i - 1 for i in x if i > 1]
-    return y
-
-
 def nice_helper(n):
     r = math.sqrt(n)
     r_floor = int(r)
@@ -838,52 +827,6 @@ def neatness(cluster_sizes, normalize=True):
     return neat_helper(f, num, den, total, normalize)
 
 
-def tidiness(cluster_sizes):
-    """
-    Examples:
-    ---------
-    >>> from gower.gower_dist import *
-    >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
-    >>> pairs = [(str(tuple(x)), tidiness(x)) for x in C]
-    >>> for k, v in sorted(pairs, key=lambda x: x[1]): print(f"{k:50}{v:25}")
-    (0,)                                                                    nan
-    (1,)                                                                    nan
-    (1, 1)                                                                  nan
-    (2,)                                                                    nan
-    (1, 1, 1)                                                               0.0
-    (3,)                                                                    0.0
-    (1, 1, 1, 1)                                                            0.0
-    (4,)                                                                    0.0
-    (1, 1, 1, 1, 1)                                                         0.0
-    (5,)                                                                    0.0
-    (1, 1, 1, 1, 1, 1)                                                      0.0
-    (6,)                                                                    0.0
-    (1, 1, 1, 1, 2)                                          0.3333333333333333
-    (1, 5)                                                   0.3333333333333333
-    (1, 1, 2)                                                               0.5
-    (1, 3)                                                                  0.5
-    (1, 1, 1, 2)                                                            0.5
-    (1, 4)                                                                  0.5
-    (1, 1, 1, 3)                                             0.6666666666666666
-    (1, 1, 2, 2)                                             0.6666666666666666
-    (1, 1, 4)                                                0.6666666666666666
-    (2, 4)                                                   0.6666666666666666
-    (1, 2)                                                                  1.0
-    (2, 2)                                                                  1.0
-    (1, 1, 3)                                                               1.0
-    (1, 2, 2)                                                               1.0
-    (2, 3)                                                                  1.0
-    (1, 2, 3)                                                               1.0
-    (2, 2, 2)                                                               1.0
-    (3, 3)                                                                  1.0
-    """
-    total = sum(cluster_sizes)
-    if total < 3:
-        return np.nan
-    f = lambda x: max(max(x), len(x))
-    return (total - f(cluster_sizes)) / (total - f(nice_helper(total)))
-
-
 def get_closest_points(x, y):
     d = np.abs(x[:, np.newaxis] - y)
     c = np.argwhere(d == np.min(d))
@@ -1079,7 +1022,8 @@ def sample_params(
                           CalinskiHarabasz=get_peaks(df_results.CalinskiHarabasz),
                           Dunn=get_peaks(df_results.Dunn),
                           Silhouette=get_peaks(df_results.Silhouette),
-                          GiniCoeff=get_peaks(df_results.GiniCoeff),
+                          GiniCoeff_peak=get_peaks(df_results.GiniCoeff),
+                          GiniCoeff_trough=get_peaks(-df_results.GiniCoeff),
                           Niceness=get_peaks(df_results.Niceness),
                           Neatness=get_peaks(df_results.Neatness)))
     if elbow_x is not None:
@@ -1100,7 +1044,8 @@ def sample_params(
             kwds["CalinskiHarabasz"],
             kwds["Dunn"],
             kwds["Silhouette"],
-            kwds["GiniCoeff"],
+            kwds["GiniCoeff_peak"],
+            kwds["GiniCoeff_trough"],
             kwds["Niceness"],
             kwds["Neatness"],
             kwds["Elbow"] if elbow_x is not None else None,
@@ -1114,7 +1059,8 @@ def sample_params(
                     "CalinskiHarabasz",
                     "Dunn",
                     "Silhouette",
-                    "GiniCoeff",
+                    "GiniCoeff_peak",
+                    "GiniCoeff_trough",
                     "Niceness",
                     "Neatness",
                     "Elbow",
@@ -1206,6 +1152,9 @@ def sample_params(
                 ax.axvline(best_params["sample"][param], c=colors[i], ls="--", alpha=0.4)
             elif col in ["AdjRandIndex", "AdjMutualInfo", "Combined"]:
                 ax.plot(var, df_results[col], c=colors[i], alpha=0.4)
+            elif col == "GiniCoeff":
+                ax.plot(var, df_results[col], '-D', c=colors[i], alpha=0.4,
+                        markevery=[kwds["GiniCoeff_peak"], kwds["GiniCoeff_trough"]])
             else:
                 ax.plot(var, df_results[col], '-D', c=colors[i], alpha=0.4, markevery=[kwds[col]])
 
