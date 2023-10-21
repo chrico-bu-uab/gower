@@ -1,23 +1,20 @@
-# Introduction
+# Examples
+
+## Installation
 
 ```
 git clone https://github.com/chrico-bu-uab/gower.git
 pip install -e gower
 ```
 
-# Examples
-
-## Installation
-
-```
-pip install gower
-```
-
 ## Generate some data and compute the Gower distance matrix
 
 ```python
+import numpy as np
 import pandas as pd
 import gower
+
+np.set_printoptions(precision=4, suppress=True)
 
 Xd = pd.DataFrame(
     {
