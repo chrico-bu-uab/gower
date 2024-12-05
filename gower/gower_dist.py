@@ -27,7 +27,7 @@ from sklearn.metrics.cluster._unsupervised import check_number_of_labels
 from sklearn.mixture import GaussianMixture, BayesianGaussianMixture
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import LabelEncoder
-from sklearn.utils import check_X_y, _safe_indexing, validate_params
+from sklearn.utils import check_X_y, _safe_indexing#, validate_params
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -386,13 +386,13 @@ def hamming_similarity(df):
 # Clustering Metrics
 
 
-@validate_params(
-    {
-        "X": ["array-like"],
-        "labels": ["array-like"],
-    },
-    prefer_skip_nested_validation=True,
-)
+# @validate_params(
+#     {
+#         "X": ["array-like"],
+#         "labels": ["array-like"],
+#     },
+#     prefer_skip_nested_validation=True,
+# )
 def calinski_harabasz_score(X, labels, p, **kwargs):
     """
     See scikit-learn's documentation for more information.
@@ -422,13 +422,13 @@ def calinski_harabasz_score(X, labels, p, **kwargs):
     )
 
 
-@validate_params(
-    {
-        "X": ["array-like"],
-        "labels": ["array-like"],
-    },
-    prefer_skip_nested_validation=True,
-)
+# @validate_params(
+#     {
+#         "X": ["array-like"],
+#         "labels": ["array-like"],
+#     },
+#     prefer_skip_nested_validation=True,
+# )
 def davies_bouldin_score(X, labels, **kwargs):
     """
     See scikit-learn's documentation for more information.
