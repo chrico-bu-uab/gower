@@ -666,9 +666,11 @@ def niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     def f(x):
         x = np.array(x)
         n = x.sum()
-        gi = n ** 2 - np.square(x).sum()
-        dof = n - len(x)
-        return gi * dof
+        s = np.square(x).sum()
+        k = len(x)
+        purity = n ** 2 - s
+        dof = n - k
+        return purity * dof
 
     total = sum(cluster_sizes)
     if total < 3:
@@ -736,7 +738,7 @@ def gini_coefficient(
         s = r * (r - 1) // 2
         n = len(x) * r + (final > 1)
         d = n * total
-        G = sum(xi * (r * (n - i * r) - s) for i, xi in enumerate(x)) + final
+        G = sum(xk * (r * (n - k * r) - s) for k, xk in enumerate(x)) + final
         return d + total - 2 * G, d
 
     num, den = f(cluster_sizes, raw if repeat else 1, raw4 if repeat else 0)
