@@ -37,6 +37,9 @@ from tqdm.contrib.concurrent import process_map
 # Everything in this package is geared to use Manhattan distance! :)
 
 
+plt.style.use("ggplot")
+
+
 def get_cat_features(X):
     x_n_cols = X.shape[1]
     if isinstance(X, pd.DataFrame):
@@ -338,13 +341,16 @@ def compute_with_gower_get(
     j_start = i if x_n_rows == y_n_rows else 0
 
     # categorical columns
-    xi_cat = X_cat.iloc[i, :]
-    xj_cat = Y_cat.iloc[j_start:, :]
-    sij_cat = np.where(xi_cat == xj_cat, np.zeros_like(xi_cat), np.ones_like(xi_cat))
-    is_nan = lambda a: a.apply(lambda b: b != b).to_numpy()[0]
-    mask = is_nan(xi_cat) | is_nan(xj_cat)
-    sij_cat[:, mask] = sij_cat[:, mask] / cat_nans[mask]
-    sum_cat = np.multiply(weight_cat, sij_cat).sum(axis=1)
+    if X_cat.shape[1] > 0:
+        xi_cat = X_cat.iloc[i, :]
+        xj_cat = Y_cat.iloc[j_start:, :]
+        sij_cat = np.where(xi_cat == xj_cat, np.zeros_like(xi_cat), np.ones_like(xi_cat))
+        is_nan = lambda a: a.apply(lambda b: b != b).to_numpy()[0]
+        mask = is_nan(xi_cat) | is_nan(xj_cat)
+        sij_cat[:, mask] = sij_cat[:, mask] / cat_nans[mask]
+        sum_cat = np.multiply(weight_cat, sij_cat).sum(axis=1)
+    else:
+        sum_cat = 0
 
     # circular columns
     xi_cir = X_cir.iloc[i, :]
@@ -598,7 +604,22 @@ def all_possible_clusters(n, memo=None):
     return out
 
 
-def nice_helper(n):
+def invert_clusters(x):
+    """
+    This function inverts a clustering. For example, [1, 2, 2] becomes [3, 2].
+    Example:
+    --------
+    >>> invert_clusters([1, 2, 2])
+    [3, 2]
+    """
+    out = []
+    while x:
+        out.append(len(x))
+        x = [i - 1 for i in x if i > 1]
+    return out
+
+
+def tidy_clusters(n):
     r = math.sqrt(n)
     r_floor = int(r)
     r_ceil = r_floor + 1
@@ -619,6 +640,17 @@ def niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
     ---------
     >>> from gower.gower_dist import *
     >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
+    >>> colors = ["r", "g", "b", "y", "m", "c", "k"]
+    >>> plt.figure(figsize=(50, 25))
+    <Figure size 5000x2500 with 0 Axes>
+    >>> a = 0
+    >>> for i in range(33):
+    ...     zz = all_possible_clusters(i)
+    ...     k = len(zz)
+    ...     u, v = [niceness(x) for x in zz], f"{colors[i % len(colors)]}x-"
+    ...     _ = plt.plot(range(a, k + a), u, v)
+    ...     a += k
+    >>> plt.show()
     >>> pairs = [(str(tuple(x)), niceness(x)) for x in C]
     >>> for k, v in sorted(pairs, key=lambda x: x[1]): print(f"{k:50}{v:25}")
     (0,)                                                                    nan
@@ -668,8 +700,9 @@ def niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
         n = x.sum()
         s = np.square(x).sum()
         k = len(x)
-        purity = n ** 2 - s
-        dof = n - k
+
+        purity = n ** 2 - s  # range is [0, n^2-n], k=[1, n]
+        dof = n - k  # range is [0, n-1], k=[n, 1]
         return purity * dof
 
     total = sum(cluster_sizes)
@@ -677,7 +710,7 @@ def niceness(cluster_sizes: Union[np.ndarray[int], list[int]]) -> float:
         return np.nan
 
     out = f(cluster_sizes)
-    out /= f(nice_helper(total))  # nice_helper maximizes f given total
+    out /= f(tidy_clusters(total))  # tidy_clusters maximizes f given total
 
     return out
 
@@ -686,19 +719,39 @@ def gini_coefficient(
         cluster_sizes: Union[np.ndarray[int], list[int]],
         normalize=True,
         return_factors=False,
-        repeat=False,
 ):
     """
     Examples:
     ---------
     >>> from gower.gower_dist import *
     >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
+    >>> colors = ["r", "g", "b", "y", "m", "c", "k"]
+    >>> plt.figure(figsize=(50, 25))
+    <Figure size 5000x2500 with 0 Axes>
+    >>> a = 0
+    >>> for i in range(33):
+    ...     zz = all_possible_clusters(i)
+    ...     k = len(zz)
+    ...     u, v = [gini_coefficient(x, normalize=False) for x in zz], f"{colors[i % len(colors)]}x-"
+    ...     _ = plt.plot(range(a, k + a), u, v)
+    ...     a += k
+    >>> plt.show()
+    >>> plt.figure(figsize=(50, 25))
+    <Figure size 5000x2500 with 0 Axes>
+    >>> a = 0
+    >>> for i in range(33):
+    ...     zz = all_possible_clusters(i)
+    ...     k = len(zz)
+    ...     u, v = [gini_coefficient(x) for x in zz], f"{colors[i % len(colors)]}x-"
+    ...     _ = plt.plot(range(a, k + a), u, v)
+    ...     a += k
+    >>> plt.show()
     >>> pairs = [(str(tuple(x)), gini_coefficient(x, False),
     ...           gini_coefficient(x)) for x in C]
     >>> for k, v1, v2 in sorted(pairs, key=lambda x: (x[2], x[1])):
     ...     print(f"{k:25}{v1:25}{v2:25}")
     (0,)                                           0.0                      0.0
-    (1,)                                           0.0                     -0.0
+    (1,)                                           0.0                      0.0
     (1, 1)                                         0.0                      0.0
     (2,)                                           0.0                      0.0
     (1, 1, 1)                                      0.0                      0.0
@@ -729,47 +782,24 @@ def gini_coefficient(
     (1, 5)                          0.3333333333333333                      1.0
     """
     cluster_sizes = sorted(cluster_sizes)
-    raw = sum(cluster_sizes)
-    raw4 = raw ** 4
-    total = raw ** 2 + raw4 if repeat else raw
-    n_singletons = int(-0.5 + math.sqrt(0.25 + total))  # solve n(n+1)=total
+    total = sum(cluster_sizes)
 
-    def f(x, r=n_singletons, final=total - n_singletons):
+    def f(x, r, final):
         s = r * (r - 1) // 2
-        n = len(x) * r + (final > 1)
+        n = len(x) * r + (final > 0)
         d = n * total
         G = sum(xk * (r * (n - k * r) - s) for k, xk in enumerate(x)) + final
         return d + total - 2 * G, d
 
-    num, den = f(cluster_sizes, raw if repeat else 1, raw4 if repeat else 0)
+    num, den = f(cluster_sizes, 1, 0)
     if normalize:
-        num1, den1 = f([1])
-        if num1:
-            if return_factors:
-                return num * den1, den * num1
-            num *= den1
-            num /= num1 * den
-            den = 1
+        n_singletons = int(-0.5 + math.sqrt(0.25 + total))  # solve n(n+1)=total
+        num1, den1 = f([1], n_singletons, total - n_singletons)
+        num *= den1
+        den *= num1
     if return_factors:
         return num, den
     return num / den if den else 0.0
-
-
-def neat_helper(f, num, den, total, normalize):
-    if not den:
-        return 0.0
-    if not normalize:
-        return num / den
-
-    num_max, den_max = (0, 1)
-    for k in range(2, math.ceil(math.sqrt(total)) + 1):
-        mu = total // k
-        add1 = total - mu * k
-        num1, den1 = f([mu] * (k - add1) + [mu + 1] * add1)
-        if num1 * den_max > num_max * den1:
-            num_max, den_max = (num1, den1)
-
-    return num * den_max / (den * num_max) if num_max else 1.0
 
 
 def neatness(cluster_sizes, normalize=True):
@@ -778,6 +808,17 @@ def neatness(cluster_sizes, normalize=True):
     ---------
     >>> from gower.gower_dist import *
     >>> C = [x for i in range(7) for x in all_possible_clusters(i)]
+    >>> colors = ["r", "g", "b", "y", "m", "c", "k"]
+    >>> plt.figure(figsize=(50, 25))
+    <Figure size 5000x2500 with 0 Axes>
+    >>> a = 0
+    >>> for i in range(33):
+    ...     zz = all_possible_clusters(i)
+    ...     k = len(zz)
+    ...     u, v = [neatness(x) for x in zz], f"{colors[i % len(colors)]}x-"
+    ...     _ = plt.plot(range(a, k + a), u, v)
+    ...     a += k
+    >>> plt.show()
     >>> pairs = [(str(tuple(x)), neatness(x, False), neatness(x)) for x in C]
     >>> for k, v1, v2 in sorted(pairs, key=lambda x: (x[2], x[1])):
     ...     print(f"{k:25}{v1:25}{v2:25}")
@@ -793,41 +834,47 @@ def neatness(cluster_sizes, normalize=True):
     (5,)                                           0.0                      0.0
     (1, 1, 1, 1, 1, 1)                             0.0                      0.0
     (6,)                                           0.0                      0.0
-    (1, 1, 1, 1, 2)              0.0006702974444909929      0.08471814923427827
-    (1, 1, 1, 2)                 0.0013227513227513227       0.1746031746031746
-    (1, 1, 1, 3)                 0.0016457142857142857                    0.208
-    (1, 1, 2)                    0.0029304029304029304      0.22252747252747251
-    (1, 5)                        0.002197802197802198       0.2777777777777778
-    (1, 1, 4)                     0.002406015037593985      0.30409356725146197
-    (1, 1, 2, 2)                               0.00256      0.32355555555555554
-    (1, 3)                       0.0049382716049382715                    0.375
-    (1, 1, 3)                             0.0029296875               0.38671875
-    (1, 4)                        0.003246753246753247      0.42857142857142855
-    (1, 2, 3)                    0.0037426900584795323       0.4730344379467186
-    (2, 4)                        0.004835164835164835       0.6111111111111112
-    (1, 2, 2)                     0.005208333333333333                   0.6875
-    (2, 2, 2)                     0.007218045112781955       0.9122807017543859
-    (1, 2)                        0.007142857142857143                      1.0
-    (2, 3)                        0.007575757575757576                      1.0
-    (3, 3)                        0.007912087912087912                      1.0
-    (2, 2)                         0.01316872427983539                      1.0
+    (1, 1, 1, 1, 2)               0.011111111111111112      0.07407407407407407
+    (1, 1, 1, 2)                                  0.02                     0.14
+    (1, 1, 2)                     0.041666666666666664                   0.1875
+    (1, 1, 1, 3)                                  0.04      0.26666666666666666
+    (1, 5)                                        0.05       0.3333333333333333
+    (1, 1, 2, 2)                   0.05333333333333334      0.35555555555555557
+    (1, 4)                         0.07142857142857142                      0.5
+    (1, 3)                          0.1111111111111111                      0.5
+    (1, 1, 3)                                    0.075                    0.525
+    (1, 1, 4)                                      0.1       0.6666666666666666
+    (2, 4)                                         0.1       0.6666666666666666
+    (1, 2, 2)                                      0.1                      0.7
+    (1, 2, 3)                      0.11666666666666667       0.7777777777777778
+    (1, 2)                          0.1111111111111111                      1.0
+    (2, 3)                         0.14285714285714285                      1.0
+    (2, 2, 2)                                     0.15                      1.0
+    (3, 3)                                        0.15                      1.0
+    (2, 2)                          0.2222222222222222                      1.0
     """
     if not isinstance(cluster_sizes, list):
         cluster_sizes = cluster_sizes.tolist()
-    total = sum(cluster_sizes)
-    if total < 3:
+    n = sum(cluster_sizes)
+    if n < 3:
         return np.nan
-    singletons = total * [1]
 
     def f(x):
-        a, b = gini_coefficient(x, return_factors=True, repeat=True)
+        a, b = gini_coefficient(x + [n ** 2], return_factors=True)
         c, d = gini_coefficient(
-            [total * i for i in x] + singletons, return_factors=True
+            [n * i for i in x] + n * [1], return_factors=True
         )
-        return (b - a) * (d - c), d * b
+        if a * d > b * c:
+            return b - a, b
+        return d - c, d
 
     num, den = f(cluster_sizes)
-    return neat_helper(f, num, den, total, normalize)
+    if normalize:
+        y = tidy_clusters(n)
+        fy = f(y)
+        num *= fy[1]
+        den *= fy[0]
+    return num / den
 
 
 def get_closest_points(x, y):
@@ -927,8 +974,8 @@ def evaluate_clusters(sample, matrix, obs, actual: pd.Series, method, precompute
     di = dunn_score([obs[clusters == i] for i in np.unique(clusters)], **kwargs)
     out |= {"DaviesBouldin": db, "CalinskiHarabasz": ch, "Dunn": di}
     if actual is not None:
-        out["AdjRandIndex"] = adjusted_rand_score(actual, clusters)
-        out["AdjMutualInfo"] = adjusted_mutual_info_score(actual, clusters)
+        out["AdjRandIndex"] = adjusted_rand_score(actual.values, clusters)
+        out["AdjMutualInfo"] = adjusted_mutual_info_score(actual.values, clusters)
         g = gini_coefficient(np.unique(actual, return_counts=True)[1])
         out["Combined"] = (1 - g) * out["AdjRandIndex"] + g * out["AdjMutualInfo"]
     return out
